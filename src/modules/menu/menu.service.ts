@@ -23,6 +23,7 @@ import {
   CreatePriceDto,
   CreateProductDto,
   StopListDto,
+  UpdateCategoryDto,
   UpdateProductDto,
 } from './menu.dto';
 
@@ -55,6 +56,25 @@ export class MenuService {
       .exec();
   }
 
+  async updateCategory(user: JwtPayload, id: string, dto: UpdateCategoryDto) {
+    const doc = await this.categoryModel
+      .findOne({
+        _id: toObjectId(id),
+        organizationId: toObjectId(user.organizationId),
+      })
+      .exec();
+    if (!doc) throw new NotFoundException('Category not found');
+    if (dto.name !== undefined) doc.name = dto.name;
+    if (dto.sortOrder !== undefined) doc.sortOrder = dto.sortOrder;
+    if (dto.isActive !== undefined) doc.isActive = dto.isActive;
+    await doc.save();
+    return doc;
+  }
+
+  async softDeleteCategory(user: JwtPayload, id: string) {
+    return this.updateCategory(user, id, { isActive: false });
+  }
+
   async createProduct(user: JwtPayload, dto: CreateProductDto) {
     const tenant = tenantFilter(user, dto.restaurantId);
     const doc = await this.productModel.create({
@@ -78,11 +98,15 @@ export class MenuService {
     return doc;
   }
 
-  listProducts(user: JwtPayload, restaurantId?: string, categoryId?: string) {
+  async listProducts(user: JwtPayload, restaurantId?: string, categoryId?: string) {
     const tenant = tenantFilter(user, restaurantId);
     const q: Record<string, unknown> = { ...tenant, isActive: true };
     if (categoryId) q.categoryId = toObjectId(categoryId);
-    return this.productModel.find(q).sort({ name: 1 }).exec();
+    const rows = await this.productModel.find(q).sort({ name: 1 }).exec();
+    return rows.map((p) => {
+      const obj = p.toObject();
+      return { ...obj, priceTiyns: obj.basePriceTiyns };
+    });
   }
 
   async updateProduct(user: JwtPayload, id: string, dto: UpdateProductDto) {
@@ -94,6 +118,7 @@ export class MenuService {
       .exec();
     if (!doc) throw new NotFoundException('Product not found');
     if (dto.name) doc.name = dto.name;
+    if (dto.categoryId !== undefined) doc.categoryId = toObjectId(dto.categoryId);
     if (dto.basePriceTiyns !== undefined) {
       doc.basePriceTiyns = Math.trunc(dto.basePriceTiyns);
     }
@@ -102,6 +127,10 @@ export class MenuService {
     if (dto.isActive !== undefined) doc.isActive = dto.isActive;
     await doc.save();
     return doc;
+  }
+
+  async softDeleteProduct(user: JwtPayload, id: string) {
+    return this.updateProduct(user, id, { isActive: false });
   }
 
   async setStopList(user: JwtPayload, id: string, dto: StopListDto) {

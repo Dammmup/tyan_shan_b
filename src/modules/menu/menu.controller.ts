@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -19,6 +20,7 @@ import {
   CreatePriceDto,
   CreateProductDto,
   StopListDto,
+  UpdateCategoryDto,
   UpdateProductDto,
 } from './menu.dto';
 
@@ -40,6 +42,22 @@ export class MenuController {
     @Query('restaurantId') restaurantId?: string,
   ) {
     return this.menuService.listCategories(user, restaurantId);
+  }
+
+  @Patch('categories/:id')
+  @Permissions(Permission.MENU_MANAGE)
+  updateCategory(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateCategoryDto,
+  ) {
+    return this.menuService.updateCategory(user, id, dto);
+  }
+
+  @Delete('categories/:id')
+  @Permissions(Permission.MENU_MANAGE)
+  removeCategory(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.menuService.softDeleteCategory(user, id);
   }
 
   @Post('products')
@@ -65,6 +83,12 @@ export class MenuController {
     @Body() dto: UpdateProductDto,
   ) {
     return this.menuService.updateProduct(user, id, dto);
+  }
+
+  @Delete('products/:id')
+  @Permissions(Permission.MENU_MANAGE)
+  removeProduct(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.menuService.softDeleteProduct(user, id);
   }
 
   @Patch('products/:id/stop-list')

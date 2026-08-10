@@ -1,10 +1,23 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, Permissions } from '../../common/decorators';
 import { Permission } from '../../common/enums';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { DiscountsService } from './discounts.service';
-import { ApplyDiscountDto, CreateDiscountDto } from './discounts.dto';
+import {
+  ApplyDiscountDto,
+  CreateDiscountDto,
+  UpdateDiscountDto,
+} from './discounts.dto';
 
 @ApiTags('discounts')
 @ApiBearerAuth()
@@ -24,6 +37,22 @@ export class DiscountsController {
     @Query('restaurantId') restaurantId?: string,
   ) {
     return this.discountsService.list(user, restaurantId);
+  }
+
+  @Patch(':id')
+  @Permissions(Permission.DISCOUNT_MANAGE)
+  update(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateDiscountDto,
+  ) {
+    return this.discountsService.update(user, id, dto);
+  }
+
+  @Delete(':id')
+  @Permissions(Permission.DISCOUNT_MANAGE)
+  remove(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.discountsService.softDelete(user, id);
   }
 
   @Post('orders/:orderId/apply')

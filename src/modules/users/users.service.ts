@@ -10,6 +10,7 @@ import { UserStatus } from '../../common/enums';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { toObjectId } from '../../common/utils/tenant';
 import { AuditService } from '../audit/audit.service';
+import { Role, RoleDocument } from '../roles/role.schema';
 import { User, UserDocument } from './user.schema';
 import { CreateUserDto, SetPinDto, UpdateUserDto } from './users.dto';
 
@@ -17,6 +18,7 @@ import { CreateUserDto, SetPinDto, UpdateUserDto } from './users.dto';
 export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Role.name) private readonly roleModel: Model<RoleDocument>,
     private readonly audit: AuditService,
   ) {}
 
@@ -68,7 +70,13 @@ export class UsersService {
       );
     }
     const rows = await this.userModel.find(filter).sort({ name: 1 }).exec();
-    return rows.map((u) => this.sanitize(u));
+    const roleIds = [...new Set(rows.map((u) => String(u.roleId)))];
+    const roles = await this.roleModel
+      .find({ _id: { $in: roleIds.map((id) => toObjectId(id)) } })
+      .select('name')
+      .exec();
+    const roleNameById = new Map(roles.map((r) => [String(r._id), r.name]));
+    return rows.map((u) => this.sanitize(u, roleNameById.get(String(u.roleId))));
   }
 
   async get(user: JwtPayload, id: string) {
@@ -150,12 +158,19 @@ export class UsersService {
     return { ok: true };
   }
 
-  private sanitize(doc: UserDocument) {
+  private async sanitize(doc: UserDocument, roleName?: string | null) {
+    const resolvedName =
+      roleName !== undefined
+        ? roleName ?? null
+        : (
+            await this.roleModel.findById(doc.roleId).select('name').exec()
+          )?.name ?? null;
     return {
       id: String(doc._id),
       email: doc.email,
       name: doc.name,
       roleId: String(doc.roleId),
+      roleName: resolvedName,
       organizationId: String(doc.organizationId),
       restaurantId: doc.restaurantId ? String(doc.restaurantId) : null,
       status: doc.status,

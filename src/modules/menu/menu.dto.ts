@@ -27,6 +27,23 @@ export class CreateCategoryDto {
   restaurantId?: string;
 }
 
+export class UpdateCategoryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  sortOrder?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
 export class CreateProductDto {
   @ApiProperty()
   @IsString()
@@ -67,6 +84,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsMongoId()
+  categoryId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

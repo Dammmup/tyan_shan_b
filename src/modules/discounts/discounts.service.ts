@@ -14,7 +14,11 @@ import { EventsGateway } from '../events/events.gateway';
 import { PricingService } from '../pricing/pricing.service';
 import { Order, OrderDocument, OrderItem, OrderItemDocument } from '../orders/order.schemas';
 import { Discount, DiscountDocument } from './discount.schema';
-import { ApplyDiscountDto, CreateDiscountDto } from './discounts.dto';
+import {
+  ApplyDiscountDto,
+  CreateDiscountDto,
+  UpdateDiscountDto,
+} from './discounts.dto';
 
 @Injectable()
 export class DiscountsService {
@@ -39,9 +43,33 @@ export class DiscountsService {
     });
   }
 
+  /** Returns all discounts for restaurant (incl. inactive); filter client-side. */
   list(user: JwtPayload, restaurantId?: string) {
     const tenant = tenantFilter(user, restaurantId);
-    return this.discountModel.find({ ...tenant, isActive: true }).exec();
+    return this.discountModel.find(tenant).exec();
+  }
+
+  async update(user: JwtPayload, id: string, dto: UpdateDiscountDto) {
+    const doc = await this.discountModel
+      .findOne({
+        _id: toObjectId(id),
+        organizationId: toObjectId(user.organizationId),
+      })
+      .exec();
+    if (!doc) throw new NotFoundException('Discount not found');
+    if (dto.name !== undefined) doc.name = dto.name;
+    if (dto.type !== undefined) doc.type = dto.type;
+    if (dto.value !== undefined) doc.value = Math.trunc(dto.value);
+    if (dto.maxPercentAllowed !== undefined) {
+      doc.maxPercentAllowed = dto.maxPercentAllowed;
+    }
+    if (dto.isActive !== undefined) doc.isActive = dto.isActive;
+    await doc.save();
+    return doc;
+  }
+
+  async softDelete(user: JwtPayload, id: string) {
+    return this.update(user, id, { isActive: false });
   }
 
   async apply(user: JwtPayload, orderId: string, dto: ApplyDiscountDto) {

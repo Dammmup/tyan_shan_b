@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsMongoId,
@@ -35,6 +36,36 @@ export class CreateDiscountDto {
   @IsOptional()
   @IsMongoId()
   restaurantId?: string;
+}
+
+export class UpdateDiscountDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ enum: DiscountType })
+  @IsOptional()
+  @IsEnum(DiscountType)
+  type?: DiscountType;
+
+  @ApiPropertyOptional({ description: 'PERCENT 0-100 or FIXED tiyns' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  value?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  maxPercentAllowed?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class ApplyDiscountDto {
