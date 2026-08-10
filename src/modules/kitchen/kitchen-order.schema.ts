@@ -33,13 +33,13 @@ export class KitchenOrder {
   @Prop({ type: Types.ObjectId, ref: 'User', default: null })
   acceptedBy!: Types.ObjectId | null;
 
-  @Prop()
+  @Prop({ type: Date })
   acceptedAt?: Date;
 
-  @Prop()
+  @Prop({ type: Date })
   readyAt?: Date;
 
-  @Prop()
+  @Prop({ type: Date })
   servedAt?: Date;
 }
 

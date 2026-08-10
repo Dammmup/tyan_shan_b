@@ -70,7 +70,7 @@ export class PrintJob {
   @Prop()
   lastError?: string;
 
-  @Prop()
+  @Prop({ type: Date })
   ackedAt?: Date;
 }
 
@@ -93,7 +93,7 @@ export class PrinterAgentToken {
   @Prop({ default: true })
   isActive!: boolean;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   lastSeenAt!: Date | null;
 }
 

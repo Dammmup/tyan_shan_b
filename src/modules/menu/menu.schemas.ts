@@ -83,7 +83,7 @@ export class Price {
   @Prop({ type: Types.ObjectId, ref: 'Hall', default: null })
   hallId!: Types.ObjectId | null;
 
-  @Prop({ trim: true, default: null })
+  @Prop({ type: String, trim: true, default: null })
   channel!: string | null;
 
   /** Price in tiyns. */

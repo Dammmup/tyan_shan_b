@@ -27,21 +27,21 @@ export class Shift {
   openingCashTiyns!: number;
 
   /** Expected cash at close in tiyns. */
-  @Prop({ default: null })
+  @Prop({ type: Number, default: null })
   expectedCashTiyns!: number | null;
 
   /** Actual counted cash in tiyns. */
-  @Prop({ default: null })
+  @Prop({ type: Number, default: null })
   actualCashTiyns!: number | null;
 
   /** expected - actual (can be negative). */
-  @Prop({ default: null })
+  @Prop({ type: Number, default: null })
   discrepancyTiyns!: number | null;
 
-  @Prop({ default: () => new Date() })
+  @Prop({ type: Date, default: () => new Date() })
   openedAt!: Date;
 
-  @Prop({ default: null })
+  @Prop({ type: Date, default: null })
   closedAt!: Date | null;
 
   @Prop()
