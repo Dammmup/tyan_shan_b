@@ -33,10 +33,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);
 
-  const port = Number(config.get('PORT') ?? 3000);
-  await app.listen(port);
+  // Render/Railway inject PORT; bind 0.0.0.0 so the platform health check sees an open port
+  const port = Number(process.env.PORT ?? config.get('PORT') ?? 3000);
+  await app.listen(port, '0.0.0.0');
   console.log(
-    `API http://localhost:${port}/api/v1  docs http://localhost:${port}/docs`,
+    `API listening on 0.0.0.0:${port}  /api/v1  docs /docs`,
   );
 }
 
