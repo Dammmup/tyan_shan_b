@@ -3,9 +3,13 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { preferPublicDns } from './common/utils/mongo-dns';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+  // Before Nest boots Mongoose (mongodb+srv SRV lookup)
+  preferPublicDns();
+
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
 

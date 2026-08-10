@@ -10,6 +10,7 @@ import {
   TableStatus,
   UserStatus,
 } from './common/enums';
+import { preferPublicDns } from './common/utils/mongo-dns';
 import { OrganizationSchema } from './modules/organizations/organization.schema';
 import { RestaurantSchema } from './modules/restaurants/restaurant.schema';
 import { RoleSchema } from './modules/roles/role.schema';
@@ -45,6 +46,7 @@ function loadEnv() {
 }
 
 loadEnv();
+preferPublicDns();
 
 const ROLE_PERMS: Record<string, Permission[]> = {
   OWNER: ALL_PERMISSIONS as Permission[],
