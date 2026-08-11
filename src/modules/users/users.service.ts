@@ -56,7 +56,7 @@ export class UsersService {
       entityType: 'User',
       entityId: String(doc._id),
     });
-    return this.sanitize(doc);
+    return this.sanitizeWithRole(doc);
   }
 
   async list(user: JwtPayload, restaurantId?: string) {
@@ -76,7 +76,9 @@ export class UsersService {
       .select('name')
       .exec();
     const roleNameById = new Map(roles.map((r) => [String(r._id), r.name]));
-    return rows.map((u) => this.sanitize(u, roleNameById.get(String(u.roleId))));
+    return rows.map((u) =>
+      this.sanitize(u, roleNameById.get(String(u.roleId)) ?? null),
+    );
   }
 
   async get(user: JwtPayload, id: string) {
@@ -87,7 +89,7 @@ export class UsersService {
       })
       .exec();
     if (!doc) throw new NotFoundException('User not found');
-    return this.sanitize(doc);
+    return this.sanitizeWithRole(doc);
   }
 
   async update(user: JwtPayload, id: string, dto: UpdateUserDto) {
@@ -112,7 +114,7 @@ export class UsersService {
       entityType: 'User',
       entityId: id,
     });
-    return this.sanitize(doc);
+    return this.sanitizeWithRole(doc);
   }
 
   async archive(user: JwtPayload, id: string) {
@@ -134,7 +136,7 @@ export class UsersService {
       entityType: 'User',
       entityId: id,
     });
-    return this.sanitize(doc);
+    return this.sanitizeWithRole(doc);
   }
 
   async setPin(user: JwtPayload, id: string, dto: SetPinDto) {
@@ -158,19 +160,19 @@ export class UsersService {
     return { ok: true };
   }
 
-  private async sanitize(doc: UserDocument, roleName?: string | null) {
-    const resolvedName =
-      roleName !== undefined
-        ? roleName ?? null
-        : (
-            await this.roleModel.findById(doc.roleId).select('name').exec()
-          )?.name ?? null;
+  private async sanitizeWithRole(doc: UserDocument) {
+    const role = await this.roleModel.findById(doc.roleId).select('name').exec();
+    return this.sanitize(doc, role?.name ?? null);
+  }
+
+  private sanitize(doc: UserDocument, roleName: string | null = null) {
     return {
       id: String(doc._id),
+      _id: String(doc._id),
       email: doc.email,
       name: doc.name,
       roleId: String(doc.roleId),
-      roleName: resolvedName,
+      roleName,
       organizationId: String(doc.organizationId),
       restaurantId: doc.restaurantId ? String(doc.restaurantId) : null,
       status: doc.status,
