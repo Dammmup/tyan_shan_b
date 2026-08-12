@@ -112,13 +112,16 @@ export class DiscountsService {
 
     order.discountId = discount._id as Types.ObjectId;
     order.discountTiyns = discountTiyns;
-    order.subtotalTiyns = subtotalTiyns;
-    order.totalTiyns = subtotalTiyns - discountTiyns;
+    const totals = this.pricing.computeOrderTotals(items, discountTiyns);
+    order.subtotalTiyns = totals.subtotalTiyns;
+    order.serviceChargeTiyns = totals.serviceChargeTiyns;
+    order.totalTiyns = totals.totalTiyns;
     await order.save();
 
     this.events.emitToRestaurant(String(order.restaurantId), 'ORDER_DISCOUNT_APPLIED', {
       orderId,
       discountTiyns,
+      serviceChargeTiyns: order.serviceChargeTiyns,
       totalTiyns: order.totalTiyns,
     });
     await this.audit.log({

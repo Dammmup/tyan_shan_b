@@ -17,9 +17,10 @@ import {
 } from '../../common/enums';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { tenantFilter, toObjectId } from '../../common/utils/tenant';
+import { tiynsToTengeDisplay } from '../../common/utils/money';
 import { AuditService } from '../audit/audit.service';
 import { EventsGateway } from '../events/events.gateway';
-import { PricingService } from '../pricing/pricing.service';
+import { PricingService, SERVICE_CHARGE_PERCENT } from '../pricing/pricing.service';
 import { Table, TableDocument } from '../halls/hall-table.schema';
 import { Product, ProductDocument } from '../menu/menu.schemas';
 import { KitchenOrder, KitchenOrderDocument } from '../kitchen/kitchen-order.schema';
@@ -45,7 +46,6 @@ import {
   CreateOrderDto,
   CreateSubOrderDto,
 } from './orders.dto';
-
 const CENTER_LABEL_RU: Record<string, string> = {
   [ProductionCenter.KITCHEN]: 'Кухня',
   [ProductionCenter.BAR]: 'Бар',
@@ -90,6 +90,7 @@ export class OrdersService {
     const totals = this.pricing.computeOrderTotals(items, order.discountTiyns);
     order.subtotalTiyns = totals.subtotalTiyns;
     order.discountTiyns = totals.discountTiyns;
+    order.serviceChargeTiyns = totals.serviceChargeTiyns;
     order.totalTiyns = totals.totalTiyns;
     if (
       order.status !== OrderStatus.PAID &&
@@ -136,6 +137,7 @@ export class OrdersService {
             status: OrderStatus.OPEN,
             subtotalTiyns: 0,
             discountTiyns: 0,
+            serviceChargeTiyns: 0,
             totalTiyns: 0,
             guests: dto.guests ?? 1,
             note: dto.note,
@@ -162,6 +164,7 @@ export class OrdersService {
           status: OrderStatus.OPEN,
           subtotalTiyns: 0,
           discountTiyns: 0,
+          serviceChargeTiyns: 0,
           totalTiyns: 0,
           guests: dto.guests ?? 1,
           note: dto.note,
@@ -439,6 +442,138 @@ export class OrdersService {
       entityId: orderId,
     });
     return { order: updated, batches: results };
+  }
+
+  /** Print guest bill (предчек) to Windows/thermal agent. */
+  async printPrecheck(user: JwtPayload, orderId: string) {
+    const order = await this.orderModel
+      .findOne({
+        _id: toObjectId(orderId),
+        organizationId: toObjectId(user.organizationId),
+      })
+      .exec();
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Order cancelled');
+    }
+
+    const items = await this.itemModel
+      .find({
+        orderId: order._id,
+        status: { $ne: OrderItemStatus.CANCELLED },
+      })
+      .sort({ createdAt: 1 })
+      .exec();
+    if (!items.length) {
+      throw new BadRequestException('No items to print');
+    }
+
+    const totals = this.pricing.computeOrderTotals(items, order.discountTiyns);
+    order.subtotalTiyns = totals.subtotalTiyns;
+    order.discountTiyns = totals.discountTiyns;
+    order.serviceChargeTiyns = totals.serviceChargeTiyns;
+    order.totalTiyns = totals.totalTiyns;
+    await order.save();
+
+    const [table, waiter, restaurant] = await Promise.all([
+      this.tableModel.findById(order.tableId).select('name').exec(),
+      this.userModel.findById(order.waiterId).select('name').exec(),
+      this.restaurantModel.findById(order.restaurantId).select('name').exec(),
+    ]);
+    const cafeName = cafeTitle(restaurant?.name);
+    const waiterName = waiter?.name || user.name || '—';
+    const tableName = table?.name || String(order.tableId).slice(-4);
+    const orderNumber = String(order._id).slice(-6).toUpperCase();
+
+    const money = (tiyns: number) => {
+      const tenge = tiynsToTengeDisplay(tiyns);
+      const [intPart, frac = '00'] = tenge.toFixed(2).split('.');
+      const spaced = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+      return frac === '00' ? `${spaced} ₸` : `${spaced},${frac} ₸`;
+    };
+
+    const itemLines = items.map((i) => {
+      const mods = (i.modifiers || [])
+        .map((m) => m.nameSnapshot)
+        .filter(Boolean)
+        .join(', ');
+      return `${i.quantity}× ${i.nameSnapshot}${mods ? ` (${mods})` : ''}  ${money(i.lineTotalTiyns)}`;
+    });
+
+    const billLines = [
+      ...itemLines,
+      '--------------------------------',
+      `Сумма: ${money(totals.subtotalTiyns)}`,
+      ...(totals.discountTiyns > 0 ? [`Скидка: −${money(totals.discountTiyns)}`] : []),
+      `Обслуживание ${SERVICE_CHARGE_PERCENT}%: ${money(totals.serviceChargeTiyns)}`,
+      `Итого: ${money(totals.totalTiyns)}`,
+    ];
+
+    const printer =
+      (await this.printerModel
+        .findOne({
+          restaurantId: order.restaurantId,
+          productionCenter: ProductionCenter.OTHER,
+          isActive: true,
+        })
+        .exec()) ||
+      (await this.printerModel
+        .findOne({
+          restaurantId: order.restaurantId,
+          productionCenter: ProductionCenter.BAR,
+          isActive: true,
+        })
+        .exec()) ||
+      (await this.printerModel
+        .findOne({ restaurantId: order.restaurantId, isActive: true })
+        .exec());
+
+    const idempotencyKey = `precheck:${String(order._id)}:${Date.now()}`;
+    const printJob = await this.printJobModel.create({
+      organizationId: order.organizationId,
+      restaurantId: order.restaurantId,
+      printerId: printer?._id ?? null,
+      orderId: order._id,
+      kitchenOrderId: null,
+      productionCenter: printer?.productionCenter || ProductionCenter.OTHER,
+      status: PrintJobStatus.PENDING,
+      idempotencyKey,
+      payload: {
+        type: 'precheck',
+        orderId: String(order._id),
+        lines: billLines,
+        totals,
+      },
+      attempts: 0,
+    });
+
+    const agentPayload = {
+      jobId: String(printJob._id),
+      ticketType: 'precheck' as const,
+      printer: {
+        ip: printer?.ip || '127.0.0.1',
+        port: printer?.port || 9100,
+        name: printer?.name || 'Предчек',
+      },
+      cafeName,
+      waiterName,
+      centerLabel: 'Предчек',
+      lines: billLines,
+      orderNumber,
+      tableName,
+    };
+
+    this.events.emitToAgent(String(order.restaurantId), 'PRINT_JOB', agentPayload);
+    await this.audit.log({
+      organizationId: user.organizationId,
+      restaurantId: order.restaurantId,
+      userId: user.userId,
+      action: 'ORDER_PRECHECK',
+      entityType: 'Order',
+      entityId: orderId,
+    });
+
+    return { ok: true, printJobId: String(printJob._id), order };
   }
 
   async list(user: JwtPayload, restaurantId?: string, status?: string) {

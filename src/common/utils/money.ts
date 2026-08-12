@@ -12,6 +12,12 @@ export function applyPercentDiscount(amountTiyns: number, percent: number): numb
   return Math.trunc((amountTiyns * (100 - p)) / 100);
 }
 
+/** Apply percent markup (e.g. service charge) to tiyns amount. */
+export function applyPercentMarkup(amountTiyns: number, percent: number): number {
+  const p = Math.max(0, Math.min(100, Math.trunc(percent)));
+  return Math.trunc((Math.trunc(amountTiyns) * p) / 100);
+}
+
 export function applyFixedDiscount(amountTiyns: number, discountTiyns: number): number {
   return Math.max(0, Math.trunc(amountTiyns) - Math.trunc(discountTiyns));
 }

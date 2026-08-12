@@ -2,11 +2,13 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { DiscountType } from '../../common/enums';
-import { applyPercentDiscount } from '../../common/utils/money';
+import { applyPercentDiscount, applyPercentMarkup } from '../../common/utils/money';
 import { Product, ProductDocument, Price, PriceDocument, Modifier, ModifierDocument } from '../menu/menu.schemas';
 import { Discount, DiscountDocument } from '../discounts/discount.schema';
 import { OrderItem } from '../orders/order.schemas';
 
+/** Cafe policy: обслуживание 10% (from printed menu). */
+export const SERVICE_CHARGE_PERCENT = 10;
 export interface ComputedItemLine {
   productId: Types.ObjectId;
   nameSnapshot: string;
@@ -133,15 +135,24 @@ export class PricingService {
   computeOrderTotals(
     items: Array<Pick<OrderItem, 'lineTotalTiyns' | 'status'>>,
     discountTiyns = 0,
-  ): { subtotalTiyns: number; discountTiyns: number; totalTiyns: number } {
+    servicePercent = SERVICE_CHARGE_PERCENT,
+  ): {
+    subtotalTiyns: number;
+    discountTiyns: number;
+    serviceChargeTiyns: number;
+    totalTiyns: number;
+  } {
     const subtotalTiyns = items
       .filter((i) => i.status !== 'CANCELLED')
       .reduce((sum, i) => sum + Math.trunc(i.lineTotalTiyns), 0);
     const disc = Math.min(Math.max(0, Math.trunc(discountTiyns)), subtotalTiyns);
+    const afterDiscount = subtotalTiyns - disc;
+    const serviceChargeTiyns = applyPercentMarkup(afterDiscount, servicePercent);
     return {
       subtotalTiyns,
       discountTiyns: disc,
-      totalTiyns: subtotalTiyns - disc,
+      serviceChargeTiyns,
+      totalTiyns: afterDiscount + serviceChargeTiyns,
     };
   }
 

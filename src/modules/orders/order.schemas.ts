@@ -129,7 +129,11 @@ export class Order {
   @Prop({ required: true, default: 0, min: 0 })
   discountTiyns!: number;
 
-  /** Grand total in tiyns. */
+  /** Service charge (обслуживание), tiyns. */
+  @Prop({ required: true, default: 0, min: 0 })
+  serviceChargeTiyns!: number;
+
+  /** Grand total in tiyns (subtotal - discount + service). */
   @Prop({ required: true, default: 0, min: 0 })
   totalTiyns!: number;
 

@@ -75,4 +75,10 @@ export class OrdersController {
   ) {
     return this.ordersService.createSubOrder(user, id, dto);
   }
+
+  @Post(':id/precheck')
+  @Permissions(Permission.ORDER_CREATE)
+  printPrecheck(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.printPrecheck(user, id);
+  }
 }
