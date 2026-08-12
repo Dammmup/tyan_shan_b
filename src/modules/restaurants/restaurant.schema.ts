@@ -19,6 +19,10 @@ export class Restaurant {
 
   @Prop({ default: 'Asia/Almaty' })
   timezone!: string;
+
+  /** Service charge percent applied after discount (cafe policy). */
+  @Prop({ default: 10 })
+  serviceChargePercent!: number;
 }
 
 export const RestaurantSchema = SchemaFactory.createForClass(Restaurant);

@@ -76,6 +76,7 @@ const ROLE_PERMS: Record<string, Permission[]> = {
   ],
   CASHIER: [
     Permission.ORDER_VIEW,
+    Permission.ORDER_DISCOUNT,
     Permission.PAYMENT_CREATE,
     Permission.SHIFT_OPEN,
     Permission.SHIFT_CLOSE,

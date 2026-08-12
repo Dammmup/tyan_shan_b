@@ -87,11 +87,21 @@ export class OrdersService {
     private readonly audit: AuditService,
   ) {}
 
+  private async servicePercentFor(restaurantId: Types.ObjectId | string) {
+    const restaurant = await this.restaurantModel
+      .findById(restaurantId)
+      .select('serviceChargePercent')
+      .exec();
+    const pct = restaurant?.serviceChargePercent;
+    return typeof pct === 'number' && pct >= 0 ? pct : SERVICE_CHARGE_PERCENT;
+  }
+
   private async recalcOrder(orderId: Types.ObjectId) {
     const items = await this.itemModel.find({ orderId }).exec();
     const order = await this.orderModel.findById(orderId).exec();
     if (!order) return null;
-    const totals = this.pricing.computeOrderTotals(items, order.discountTiyns);
+    const servicePercent = await this.servicePercentFor(order.restaurantId);
+    const totals = this.pricing.computeOrderTotals(items, order.discountTiyns, servicePercent);
     order.subtotalTiyns = totals.subtotalTiyns;
     order.discountTiyns = totals.discountTiyns;
     order.serviceChargeTiyns = totals.serviceChargeTiyns;
@@ -473,18 +483,25 @@ export class OrdersService {
       throw new BadRequestException('No items to print');
     }
 
-    const totals = this.pricing.computeOrderTotals(items, order.discountTiyns);
+    const [table, waiter, restaurant] = await Promise.all([
+      this.tableModel.findById(order.tableId).select('name').exec(),
+      this.userModel.findById(order.waiterId).select('name').exec(),
+      this.restaurantModel
+        .findById(order.restaurantId)
+        .select('name serviceChargePercent')
+        .exec(),
+    ]);
+    const servicePercent =
+      typeof restaurant?.serviceChargePercent === 'number' && restaurant.serviceChargePercent >= 0
+        ? restaurant.serviceChargePercent
+        : SERVICE_CHARGE_PERCENT;
+    const totals = this.pricing.computeOrderTotals(items, order.discountTiyns, servicePercent);
     order.subtotalTiyns = totals.subtotalTiyns;
     order.discountTiyns = totals.discountTiyns;
     order.serviceChargeTiyns = totals.serviceChargeTiyns;
     order.totalTiyns = totals.totalTiyns;
     await order.save();
 
-    const [table, waiter, restaurant] = await Promise.all([
-      this.tableModel.findById(order.tableId).select('name').exec(),
-      this.userModel.findById(order.waiterId).select('name').exec(),
-      this.restaurantModel.findById(order.restaurantId).select('name').exec(),
-    ]);
     const cafeName = cafeTitle(restaurant?.name);
     const waiterName = waiter?.name || user.name || '—';
     const tableName = table?.name || String(order.tableId).slice(-4);
@@ -510,7 +527,7 @@ export class OrdersService {
       '--------------------------------',
       `Сумма: ${money(totals.subtotalTiyns)}`,
       ...(totals.discountTiyns > 0 ? [`Скидка: −${money(totals.discountTiyns)}`] : []),
-      `Обслуживание ${SERVICE_CHARGE_PERCENT}%: ${money(totals.serviceChargeTiyns)}`,
+      `Обслуживание ${servicePercent}%: ${money(totals.serviceChargeTiyns)}`,
       `Итого: ${money(totals.totalTiyns)}`,
     ];
 

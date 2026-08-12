@@ -20,6 +20,7 @@ export class RestaurantsService {
       name: dto.name,
       address: dto.address,
       timezone: dto.timezone ?? 'Asia/Almaty',
+      serviceChargePercent: dto.serviceChargePercent ?? 10,
       organizationId: toObjectId(user.organizationId),
       isActive: true,
     });
@@ -57,6 +58,9 @@ export class RestaurantsService {
     if (dto.name) doc.name = dto.name;
     if (dto.address !== undefined) doc.address = dto.address;
     if (dto.timezone) doc.timezone = dto.timezone;
+    if (dto.serviceChargePercent !== undefined) {
+      doc.serviceChargePercent = dto.serviceChargePercent;
+    }
     await doc.save();
     await this.audit.log({
       organizationId: user.organizationId,

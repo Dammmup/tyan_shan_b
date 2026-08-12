@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsInt,
   IsMongoId,
   IsNumber,
@@ -35,6 +36,11 @@ export class UpdateHallDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class CreateTableDto {
@@ -115,4 +121,9 @@ export class UpdateTableDto {
   @IsOptional()
   @IsString()
   status?: TableStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

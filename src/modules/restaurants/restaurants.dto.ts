@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateRestaurantDto {
@@ -15,6 +15,13 @@ export class CreateRestaurantDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @ApiPropertyOptional({ description: 'Service charge percent 0-100' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  serviceChargePercent?: number;
 }
 
 export class UpdateRestaurantDto {
@@ -32,4 +39,11 @@ export class UpdateRestaurantDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  @ApiPropertyOptional({ description: 'Service charge percent 0-100' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  serviceChargePercent?: number;
 }

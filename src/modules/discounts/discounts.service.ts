@@ -11,8 +11,9 @@ import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { tenantFilter, toObjectId } from '../../common/utils/tenant';
 import { AuditService } from '../audit/audit.service';
 import { EventsGateway } from '../events/events.gateway';
-import { PricingService } from '../pricing/pricing.service';
+import { PricingService, SERVICE_CHARGE_PERCENT } from '../pricing/pricing.service';
 import { Order, OrderDocument, OrderItem, OrderItemDocument } from '../orders/order.schemas';
+import { Restaurant, RestaurantDocument } from '../restaurants/restaurant.schema';
 import { Discount, DiscountDocument } from './discount.schema';
 import {
   ApplyDiscountDto,
@@ -26,6 +27,7 @@ export class DiscountsService {
     @InjectModel(Discount.name) private readonly discountModel: Model<DiscountDocument>,
     @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
     @InjectModel(OrderItem.name) private readonly itemModel: Model<OrderItemDocument>,
+    @InjectModel(Restaurant.name) private readonly restaurantModel: Model<RestaurantDocument>,
     private readonly pricing: PricingService,
     private readonly events: EventsGateway,
     private readonly audit: AuditService,
@@ -112,7 +114,15 @@ export class DiscountsService {
 
     order.discountId = discount._id as Types.ObjectId;
     order.discountTiyns = discountTiyns;
-    const totals = this.pricing.computeOrderTotals(items, discountTiyns);
+    const restaurant = await this.restaurantModel
+      .findById(order.restaurantId)
+      .select('serviceChargePercent')
+      .exec();
+    const servicePercent =
+      typeof restaurant?.serviceChargePercent === 'number' && restaurant.serviceChargePercent >= 0
+        ? restaurant.serviceChargePercent
+        : SERVICE_CHARGE_PERCENT;
+    const totals = this.pricing.computeOrderTotals(items, discountTiyns, servicePercent);
     order.subtotalTiyns = totals.subtotalTiyns;
     order.serviceChargeTiyns = totals.serviceChargeTiyns;
     order.totalTiyns = totals.totalTiyns;

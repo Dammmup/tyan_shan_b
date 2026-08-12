@@ -54,6 +54,7 @@ export class HallsService {
     if (!doc) throw new NotFoundException('Hall not found');
     if (dto.name) doc.name = dto.name;
     if (dto.sortOrder !== undefined) doc.sortOrder = dto.sortOrder;
+    if (dto.isActive !== undefined) doc.isActive = dto.isActive;
     await doc.save();
     return doc;
   }
@@ -101,6 +102,7 @@ export class HallsService {
     if (dto.height !== undefined) doc.height = dto.height;
     if (dto.seats !== undefined) doc.seats = dto.seats;
     if (dto.status) doc.status = dto.status;
+    if (dto.isActive !== undefined) doc.isActive = dto.isActive;
     await doc.save();
     this.events.emitToRestaurant(String(doc.restaurantId), 'TABLE_UPDATED', doc);
     return doc;
