@@ -29,7 +29,9 @@ import {
   PrintJob,
   PrintJobDocument,
 } from '../printers/printer.schemas';
+import { Restaurant, RestaurantDocument } from '../restaurants/restaurant.schema';
 import { Shift, ShiftDocument } from '../shifts/shift.schemas';
+import { User, UserDocument } from '../users/user.schema';
 import {
   Order,
   OrderDocument,
@@ -43,6 +45,17 @@ import {
   CreateOrderDto,
   CreateSubOrderDto,
 } from './orders.dto';
+
+const CENTER_LABEL_RU: Record<string, string> = {
+  [ProductionCenter.KITCHEN]: 'Кухня',
+  [ProductionCenter.BAR]: 'Бар',
+};
+
+function cafeTitle(restaurantName?: string | null): string {
+  const n = (restaurantName || '').trim();
+  if (!n || /^главн/i.test(n)) return 'Кафе «Тянь-Шань»';
+  return `Кафе «${n}»`;
+}
 
 @Injectable()
 export class OrdersService {
@@ -62,6 +75,9 @@ export class OrdersService {
     @InjectModel(Printer.name)
     private readonly printerModel: Model<PrinterDocument>,
     @InjectModel(Shift.name) private readonly shiftModel: Model<ShiftDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Restaurant.name)
+    private readonly restaurantModel: Model<RestaurantDocument>,
     private readonly pricing: PricingService,
     private readonly events: EventsGateway,
     private readonly audit: AuditService,
@@ -280,6 +296,16 @@ export class OrdersService {
       throw new BadRequestException('No NEW items to send');
     }
 
+    const [table, waiter, restaurant] = await Promise.all([
+      this.tableModel.findById(order.tableId).select('name').exec(),
+      this.userModel.findById(order.waiterId).select('name').exec(),
+      this.restaurantModel.findById(order.restaurantId).select('name').exec(),
+    ]);
+    const cafeName = cafeTitle(restaurant?.name);
+    const waiterName = waiter?.name || user.name || '—';
+    const tableName = table?.name || String(order.tableId).slice(-4);
+    const orderNumber = String(order._id).slice(-6).toUpperCase();
+
     const byCenter = new Map<ProductionCenter, OrderItemDocument[]>();
     for (const item of items) {
       const list = byCenter.get(item.productionCenter) ?? [];
@@ -325,34 +351,34 @@ export class OrdersService {
         })
         .exec();
 
+      const centerLabel = CENTER_LABEL_RU[center] || center;
       const idempotencyKey = `suborder:${String(sub._id)}:${center}`;
-      const lines = [
-        `=== ${center} ===`,
-        `ORDER ${String(order._id).slice(-6).toUpperCase()}`,
-        `SUB #${order.subOrderSeq}`,
-        `TABLE ${String(order.tableId).slice(-4)}`,
-        '----------------',
-        ...centerItems.map((i) => {
-          const mods = (i.modifiers || [])
-            .map((m) => m.nameSnapshot)
-            .filter(Boolean)
-            .join(', ');
-          return `${i.quantity}x ${i.nameSnapshot}${mods ? ` (${mods})` : ''}${i.note ? ` // ${i.note}` : ''}`;
-        }),
-      ];
+      const itemLines = centerItems.map((i) => {
+        const mods = (i.modifiers || [])
+          .map((m) => m.nameSnapshot)
+          .filter(Boolean)
+          .join(', ');
+        const note = i.note ? ` — ${i.note}` : '';
+        return `${i.quantity}× ${i.nameSnapshot}${mods ? ` (${mods})` : ''}${note}`;
+      });
       const payload = {
         orderId: String(order._id),
         subOrderId: String(sub._id),
         kitchenOrderId: String(kitchen._id),
         tableId: String(order.tableId),
+        tableName,
+        cafeName,
+        waiterName,
         productionCenter: center,
+        centerLabel,
+        subOrderSeq: order.subOrderSeq,
         items: centerItems.map((i) => ({
           name: i.nameSnapshot,
           qty: i.quantity,
           note: i.note,
           modifiers: i.modifiers,
         })),
-        lines,
+        lines: itemLines,
       };
 
       let printJob = await this.printJobModel.findOne({ idempotencyKey }).exec();
@@ -376,11 +402,15 @@ export class OrdersService {
         printer: {
           ip: printer?.ip || '127.0.0.1',
           port: printer?.port || 9100,
-          name: printer?.name || center,
+          name: printer?.name || centerLabel,
         },
-        lines,
-        orderNumber: String(order._id).slice(-6).toUpperCase(),
-        tableName: String(order.tableId).slice(-4),
+        cafeName,
+        waiterName,
+        centerLabel,
+        subOrderSeq: order.subOrderSeq,
+        lines: itemLines,
+        orderNumber,
+        tableName,
       };
 
       const rid = String(order.restaurantId);
