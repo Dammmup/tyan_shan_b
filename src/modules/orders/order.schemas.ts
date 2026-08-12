@@ -5,6 +5,7 @@ import {
   OrderStatus,
   PaymentMethod,
   ProductionCenter,
+  PRODUCTION_CENTER_VALUES,
 } from '../../common/enums';
 
 export type OrderDocument = HydratedDocument<Order>;
@@ -55,7 +56,7 @@ export class OrderItem {
   @Prop({ type: [OrderItemModifierSnapshotSchema], default: [] })
   modifiers!: OrderItemModifierSnapshot[];
 
-  @Prop({ type: String, enum: ProductionCenter, required: true })
+  @Prop({ type: String, enum: PRODUCTION_CENTER_VALUES, required: true })
   productionCenter!: ProductionCenter;
 
   @Prop({ type: String, enum: OrderItemStatus, default: OrderItemStatus.NEW })
@@ -78,7 +79,7 @@ export class SubOrder {
   @Prop({ type: Types.ObjectId, ref: 'Order', required: true, index: true })
   orderId!: Types.ObjectId;
 
-  @Prop({ type: String, enum: ProductionCenter, required: true })
+  @Prop({ type: String, enum: PRODUCTION_CENTER_VALUES, required: true })
   productionCenter!: ProductionCenter;
 
   @Prop({ type: Number, required: true })

@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { ProductAvailability, ProductionCenter } from '../../common/enums';
+import { ProductAvailability, ProductionCenter, PRODUCTION_CENTER_VALUES } from '../../common/enums';
 
 export type CategoryDocument = HydratedDocument<Category>;
 export type ProductDocument = HydratedDocument<Product>;
@@ -46,7 +46,7 @@ export class Product {
   @Prop({ required: true, min: 0 })
   basePriceTiyns!: number;
 
-  @Prop({ type: String, enum: ProductionCenter, default: ProductionCenter.KITCHEN })
+  @Prop({ type: String, enum: PRODUCTION_CENTER_VALUES, default: ProductionCenter.KITCHEN })
   productionCenter!: ProductionCenter;
 
   @Prop({

@@ -47,6 +47,28 @@ export enum ProductionCenter {
   OTHER = 'OTHER',
 }
 
+/** Explicit list for Mongoose enums (avoids stale/partial TS enum values in prod). */
+export const PRODUCTION_CENTER_VALUES: ProductionCenter[] = [
+  ProductionCenter.COLD,
+  ProductionCenter.KITCHEN,
+  ProductionCenter.BAR,
+  ProductionCenter.GRILL,
+  ProductionCenter.DESSERT,
+  ProductionCenter.OTHER,
+];
+
+export function normalizeProductionCenter(
+  value?: string | null,
+): ProductionCenter {
+  if (
+    value &&
+    (PRODUCTION_CENTER_VALUES as string[]).includes(value)
+  ) {
+    return value as ProductionCenter;
+  }
+  return ProductionCenter.KITCHEN;
+}
+
 export enum PaymentMethod {
   CASH = 'CASH',
   CARD = 'CARD',

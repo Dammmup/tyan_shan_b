@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { KitchenStatus, ProductionCenter } from '../../common/enums';
+import { KitchenStatus, ProductionCenter, PRODUCTION_CENTER_VALUES } from '../../common/enums';
 
 export type KitchenOrderDocument = HydratedDocument<KitchenOrder>;
 
@@ -21,7 +21,7 @@ export class KitchenOrder {
   @Prop({ type: Types.ObjectId, ref: 'Table', required: true })
   tableId!: Types.ObjectId;
 
-  @Prop({ type: String, enum: ProductionCenter, required: true, index: true })
+  @Prop({ type: String, enum: PRODUCTION_CENTER_VALUES, required: true, index: true })
   productionCenter!: ProductionCenter;
 
   @Prop({ type: String, enum: KitchenStatus, default: KitchenStatus.NEW, index: true })

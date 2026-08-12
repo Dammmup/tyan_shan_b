@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { PrintJobStatus, ProductionCenter } from '../../common/enums';
+import { PrintJobStatus, ProductionCenter, PRODUCTION_CENTER_VALUES } from '../../common/enums';
 
 export type PrinterDocument = HydratedDocument<Printer>;
 export type PrintJobDocument = HydratedDocument<PrintJob>;
@@ -17,7 +17,7 @@ export class Printer {
   @Prop({ type: Types.ObjectId, ref: 'Restaurant', required: true, index: true })
   restaurantId!: Types.ObjectId;
 
-  @Prop({ type: String, enum: ProductionCenter, required: true })
+  @Prop({ type: String, enum: PRODUCTION_CENTER_VALUES, required: true })
   productionCenter!: ProductionCenter;
 
   @Prop({ trim: true })
@@ -52,7 +52,7 @@ export class PrintJob {
   @Prop({ type: Types.ObjectId, ref: 'KitchenOrder', default: null })
   kitchenOrderId!: Types.ObjectId | null;
 
-  @Prop({ type: String, enum: ProductionCenter, required: true })
+  @Prop({ type: String, enum: PRODUCTION_CENTER_VALUES, required: true })
   productionCenter!: ProductionCenter;
 
   @Prop({ type: String, enum: PrintJobStatus, default: PrintJobStatus.PENDING, index: true })
