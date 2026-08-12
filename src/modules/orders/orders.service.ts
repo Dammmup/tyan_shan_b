@@ -16,6 +16,7 @@ import {
   CashOpType,
   ShiftStatus,
   TableStatus,
+  normalizeProductionCenter,
 } from '../../common/enums';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { tenantFilter, toObjectId } from '../../common/utils/tenant';
@@ -303,10 +304,9 @@ export class OrdersService {
       note: dto.note,
     });
 
-    const productionCenter =
-      (line.productionCenter as ProductionCenter) ||
-      product.productionCenter ||
-      ProductionCenter.KITCHEN;
+    const productionCenter = normalizeProductionCenter(
+      line.productionCenter || product.productionCenter,
+    );
 
     const note = dto.note?.trim() ? dto.note.trim().slice(0, 200) : undefined;
 
