@@ -66,6 +66,12 @@ export class OrdersController {
     return this.ordersService.cancelItem(user, id, itemId);
   }
 
+  @Post(':id/cancel')
+  @Permissions(Permission.ORDER_CANCEL)
+  cancelOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.ordersService.cancelOrder(user, id);
+  }
+
   @Post(':id/suborders')
   @Permissions(Permission.ORDER_CREATE)
   createSubOrder(

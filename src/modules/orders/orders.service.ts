@@ -289,6 +289,83 @@ export class OrdersService {
     return item;
   }
 
+  async cancelOrder(user: JwtPayload, orderId: string) {
+    const order = await this.orderModel
+      .findOne({
+        _id: toObjectId(orderId),
+        organizationId: toObjectId(user.organizationId),
+      })
+      .exec();
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === OrderStatus.PAID) {
+      throw new BadRequestException('Cannot cancel paid order');
+    }
+    if (order.status === OrderStatus.CANCELLED) {
+      return this.getById(user, orderId);
+    }
+
+    const items = await this.itemModel.find({ orderId: order._id }).exec();
+    const hasServed = items.some((i) => i.status === OrderItemStatus.SERVED);
+    if (hasServed) {
+      throw new BadRequestException('Cannot cancel order with served items');
+    }
+
+    await this.itemModel.updateMany(
+      {
+        orderId: order._id,
+        status: { $ne: OrderItemStatus.CANCELLED },
+      },
+      { $set: { status: OrderItemStatus.CANCELLED } },
+    );
+
+    await this.kitchenModel.updateMany(
+      {
+        orderId: order._id,
+        status: {
+          $nin: [KitchenStatus.SERVED, KitchenStatus.CANCELLED],
+        },
+      },
+      { $set: { status: KitchenStatus.CANCELLED } },
+    );
+
+    order.status = OrderStatus.CANCELLED;
+    order.discountTiyns = 0;
+    order.serviceChargeTiyns = 0;
+    order.subtotalTiyns = 0;
+    order.totalTiyns = 0;
+    await order.save();
+
+    const table = await this.tableModel.findById(order.tableId).exec();
+    if (table && String(table.currentOrderId) === String(order._id)) {
+      table.status = TableStatus.FREE;
+      table.currentOrderId = null;
+      await table.save();
+      this.events.emitToRestaurant(String(order.restaurantId), 'TABLE_UPDATED', {
+        _id: table._id,
+        status: TableStatus.FREE,
+        currentOrderId: null,
+      });
+    }
+
+    this.events.emitToRestaurant(String(order.restaurantId), 'ORDER_CANCELLED', {
+      orderId,
+      order,
+    });
+    this.events.emitToRestaurant(String(order.restaurantId), 'KITCHEN_UPDATED', {
+      orderId,
+    });
+    await this.audit.log({
+      organizationId: user.organizationId,
+      restaurantId: order.restaurantId,
+      userId: user.userId,
+      action: 'ORDER_CANCEL',
+      entityType: 'Order',
+      entityId: orderId,
+    });
+
+    return this.getById(user, orderId);
+  }
+
   async createSubOrder(user: JwtPayload, orderId: string, dto: CreateSubOrderDto) {
     const order = await this.orderModel
       .findOne({

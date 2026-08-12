@@ -26,6 +26,16 @@ export class ShiftsController {
     return this.shiftsService.current(user, restaurantId);
   }
 
+  @Get()
+  @Permissions(Permission.REPORT_VIEW)
+  list(
+    @CurrentUser() user: JwtPayload,
+    @Query('restaurantId') restaurantId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.shiftsService.list(user, restaurantId, limit ? Number(limit) : 20);
+  }
+
   @Post(':id/close')
   @Permissions(Permission.SHIFT_CLOSE)
   close(

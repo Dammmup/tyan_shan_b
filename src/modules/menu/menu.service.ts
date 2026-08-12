@@ -24,6 +24,8 @@ import {
   CreateProductDto,
   StopListDto,
   UpdateCategoryDto,
+  UpdateModifierDto,
+  UpdateModifierGroupDto,
   UpdateProductDto,
 } from './menu.dto';
 
@@ -103,9 +105,56 @@ export class MenuService {
     const q: Record<string, unknown> = { ...tenant, isActive: true };
     if (categoryId) q.categoryId = toObjectId(categoryId);
     const rows = await this.productModel.find(q).sort({ name: 1 }).exec();
+
+    const groupIds = [
+      ...new Set(rows.flatMap((p) => (p.modifierGroupIds || []).map((id) => String(id)))),
+    ];
+    const groups = groupIds.length
+      ? await this.groupModel
+          .find({ _id: { $in: groupIds }, isActive: true })
+          .exec()
+      : [];
+    const modifiers = groupIds.length
+      ? await this.modifierModel
+          .find({ groupId: { $in: groupIds }, isActive: true })
+          .exec()
+      : [];
+    const modsByGroup = new Map<string, typeof modifiers>();
+    for (const m of modifiers) {
+      const key = String(m.groupId);
+      const list = modsByGroup.get(key) || [];
+      list.push(m);
+      modsByGroup.set(key, list);
+    }
+    const groupById = new Map(
+      groups.map((g) => [
+        String(g._id),
+        {
+          _id: String(g._id),
+          name: g.name,
+          minSelect: g.minSelect,
+          maxSelect: g.maxSelect,
+          required: g.required,
+          modifiers: (modsByGroup.get(String(g._id)) || []).map((m) => ({
+            _id: String(m._id),
+            name: m.name,
+            priceTiyns: m.priceTiyns,
+            isActive: m.isActive,
+          })),
+        },
+      ]),
+    );
+
     return rows.map((p) => {
       const obj = p.toObject();
-      return { ...obj, priceTiyns: obj.basePriceTiyns };
+      const modifierGroups = (obj.modifierGroupIds || [])
+        .map((id) => groupById.get(String(id)))
+        .filter(Boolean);
+      return {
+        ...obj,
+        priceTiyns: obj.basePriceTiyns,
+        modifierGroups,
+      };
     });
   }
 
@@ -124,6 +173,9 @@ export class MenuService {
     }
     if (dto.productionCenter) doc.productionCenter = dto.productionCenter;
     if (dto.description !== undefined) doc.description = dto.description;
+    if (dto.modifierGroupIds !== undefined) {
+      doc.modifierGroupIds = dto.modifierGroupIds.map((gid) => toObjectId(gid));
+    }
     if (dto.isActive !== undefined) doc.isActive = dto.isActive;
     await doc.save();
     return doc;
@@ -207,5 +259,45 @@ export class MenuService {
     const q: Record<string, unknown> = { ...tenant, isActive: true };
     if (groupId) q.groupId = toObjectId(groupId);
     return this.modifierModel.find(q).exec();
+  }
+
+  async updateModifierGroup(user: JwtPayload, id: string, dto: UpdateModifierGroupDto) {
+    const doc = await this.groupModel
+      .findOne({
+        _id: toObjectId(id),
+        organizationId: toObjectId(user.organizationId),
+      })
+      .exec();
+    if (!doc) throw new NotFoundException('Modifier group not found');
+    if (dto.name !== undefined) doc.name = dto.name;
+    if (dto.required !== undefined) doc.required = dto.required;
+    if (dto.minSelect !== undefined) doc.minSelect = dto.minSelect;
+    if (dto.maxSelect !== undefined) doc.maxSelect = dto.maxSelect;
+    if (dto.isActive !== undefined) doc.isActive = dto.isActive;
+    await doc.save();
+    return doc;
+  }
+
+  async softDeleteModifierGroup(user: JwtPayload, id: string) {
+    return this.updateModifierGroup(user, id, { isActive: false });
+  }
+
+  async updateModifier(user: JwtPayload, id: string, dto: UpdateModifierDto) {
+    const doc = await this.modifierModel
+      .findOne({
+        _id: toObjectId(id),
+        organizationId: toObjectId(user.organizationId),
+      })
+      .exec();
+    if (!doc) throw new NotFoundException('Modifier not found');
+    if (dto.name !== undefined) doc.name = dto.name;
+    if (dto.priceTiyns !== undefined) doc.priceTiyns = Math.trunc(dto.priceTiyns);
+    if (dto.isActive !== undefined) doc.isActive = dto.isActive;
+    await doc.save();
+    return doc;
+  }
+
+  async softDeleteModifier(user: JwtPayload, id: string) {
+    return this.updateModifier(user, id, { isActive: false });
   }
 }

@@ -139,12 +139,21 @@ export class ReportsService {
     if (!shift) return null;
     const payments = await this.paymentModel.find({ shiftId: shift._id }).exec();
     const orders = await this.orderModel.find({ shiftId: shift._id }).exec();
+    const byMethod: Record<string, { count: number; amountTiyns: number }> = {};
+    for (const p of payments) {
+      const key = String(p.method || 'OTHER');
+      if (!byMethod[key]) byMethod[key] = { count: 0, amountTiyns: 0 };
+      byMethod[key].count += 1;
+      byMethod[key].amountTiyns += p.amountTiyns;
+    }
     return {
       shift,
       paymentsCount: payments.length,
       paymentsTotalTiyns: payments.reduce((s, p) => s + p.amountTiyns, 0),
       ordersCount: orders.length,
       paidOrders: orders.filter((o) => o.status === OrderStatus.PAID).length,
+      cancelledOrders: orders.filter((o) => o.status === OrderStatus.CANCELLED).length,
+      byMethod,
     };
   }
 }

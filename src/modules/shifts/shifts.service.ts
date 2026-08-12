@@ -54,9 +54,19 @@ export class ShiftsService {
     return shift;
   }
 
-  async current(user: JwtPayload, restaurantId?: string) {
+  async   current(user: JwtPayload, restaurantId?: string) {
     const tenant = tenantFilter(user, restaurantId);
     return this.shiftModel.findOne({ ...tenant, status: ShiftStatus.OPEN }).exec();
+  }
+
+  list(user: JwtPayload, restaurantId?: string, limit = 20) {
+    const tenant = tenantFilter(user, restaurantId);
+    const take = Math.min(Math.max(1, Math.trunc(limit) || 20), 50);
+    return this.shiftModel
+      .find(tenant)
+      .sort({ openedAt: -1 })
+      .limit(take)
+      .exec();
   }
 
   async close(user: JwtPayload, id: string, dto: CloseShiftDto) {

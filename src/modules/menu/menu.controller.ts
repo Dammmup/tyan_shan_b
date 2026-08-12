@@ -21,6 +21,8 @@ import {
   CreateProductDto,
   StopListDto,
   UpdateCategoryDto,
+  UpdateModifierDto,
+  UpdateModifierGroupDto,
   UpdateProductDto,
 } from './menu.dto';
 
@@ -133,6 +135,22 @@ export class MenuController {
     return this.menuService.listModifierGroups(user, restaurantId);
   }
 
+  @Patch('modifier-groups/:id')
+  @Permissions(Permission.MENU_MANAGE)
+  updateGroup(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateModifierGroupDto,
+  ) {
+    return this.menuService.updateModifierGroup(user, id, dto);
+  }
+
+  @Delete('modifier-groups/:id')
+  @Permissions(Permission.MENU_MANAGE)
+  removeGroup(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.menuService.softDeleteModifierGroup(user, id);
+  }
+
   @Post('modifiers')
   @Permissions(Permission.MENU_MANAGE)
   createModifier(@CurrentUser() user: JwtPayload, @Body() dto: CreateModifierDto) {
@@ -146,5 +164,21 @@ export class MenuController {
     @Query('groupId') groupId?: string,
   ) {
     return this.menuService.listModifiers(user, restaurantId, groupId);
+  }
+
+  @Patch('modifiers/:id')
+  @Permissions(Permission.MENU_MANAGE)
+  updateModifier(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateModifierDto,
+  ) {
+    return this.menuService.updateModifier(user, id, dto);
+  }
+
+  @Delete('modifiers/:id')
+  @Permissions(Permission.MENU_MANAGE)
+  removeModifier(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.menuService.softDeleteModifier(user, id);
   }
 }
