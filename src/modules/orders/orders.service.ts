@@ -192,6 +192,11 @@ export class OrdersService {
     const openShift = await this.shiftModel
       .findOne({ ...tenant, status: ShiftStatus.OPEN })
       .exec();
+    if (!openShift) {
+      throw new BadRequestException(
+        'Смена не открыта. Владелец или кассир должен открыть смену на кассе.',
+      );
+    }
 
     const session = await this.connection.startSession();
     let order: OrderDocument | null = null;
@@ -204,7 +209,7 @@ export class OrdersService {
             hallId: table.hallId,
             tableId: table._id,
             waiterId: toObjectId(user.userId),
-            shiftId: openShift?._id ?? null,
+            shiftId: openShift._id,
             status: OrderStatus.OPEN,
             subtotalTiyns: 0,
             discountTiyns: 0,
@@ -234,7 +239,7 @@ export class OrdersService {
           hallId: table.hallId,
           tableId: table._id,
           waiterId: toObjectId(user.userId),
-          shiftId: openShift?._id ?? null,
+          shiftId: openShift._id,
           status: OrderStatus.OPEN,
           subtotalTiyns: 0,
           discountTiyns: 0,
@@ -766,6 +771,19 @@ export class OrdersService {
     if (!order) throw new NotFoundException('Order not found');
     if (order.status === OrderStatus.PAID || order.status === OrderStatus.CANCELLED) {
       throw new BadRequestException('Order is closed');
+    }
+
+    const openShift = await this.shiftModel
+      .findOne({
+        organizationId: order.organizationId,
+        restaurantId: order.restaurantId,
+        status: ShiftStatus.OPEN,
+      })
+      .exec();
+    if (!openShift) {
+      throw new BadRequestException(
+        'Смена не открыта. Владелец или кассир должен открыть смену на кассе.',
+      );
     }
 
     const q: Record<string, unknown> = {
