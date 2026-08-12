@@ -1095,6 +1095,40 @@ export class OrdersService {
     return this.orderModel.find(q).sort({ createdAt: -1 }).limit(100).exec();
   }
 
+  async getOpenByTable(user: JwtPayload, tableId: string, restaurantId?: string) {
+    const tenant = tenantFilter(user, restaurantId);
+    const order = await this.orderModel
+      .findOne({
+        ...tenant,
+        tableId: toObjectId(tableId, 'tableId'),
+        status: {
+          $in: [
+            OrderStatus.OPEN,
+            OrderStatus.IN_PROGRESS,
+            OrderStatus.READY,
+            OrderStatus.SERVED,
+          ],
+        },
+      })
+      .sort({ createdAt: -1 })
+      .exec();
+    if (!order) throw new NotFoundException('No open order for table');
+
+    const table = await this.tableModel.findById(tableId).exec();
+    if (
+      table &&
+      (table.status !== TableStatus.OCCUPIED ||
+        !table.currentOrderId ||
+        String(table.currentOrderId) !== String(order._id))
+    ) {
+      table.status = TableStatus.OCCUPIED;
+      table.currentOrderId = order._id as Types.ObjectId;
+      await table.save();
+    }
+
+    return this.getById(user, String(order._id));
+  }
+
   async getById(user: JwtPayload, id: string) {
     const order = await this.orderModel
       .findOne({

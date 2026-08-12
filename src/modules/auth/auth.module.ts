@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User, UserSchema } from '../users/user.schema';
 import { Role, RoleSchema } from '../roles/role.schema';
+import { Restaurant, RestaurantSchema } from '../restaurants/restaurant.schema';
 import { AuditModule } from '../audit/audit.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
@@ -24,6 +25,7 @@ import { JwtStrategy } from './jwt.strategy';
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Role.name, schema: RoleSchema },
+      { name: Restaurant.name, schema: RestaurantSchema },
     ]),
     AuditModule,
   ],

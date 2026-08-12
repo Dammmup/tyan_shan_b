@@ -42,6 +42,16 @@ export class OrdersController {
     return this.ordersService.list(user, restaurantId, status);
   }
 
+  @Get('by-table/:tableId')
+  @Permissions(Permission.ORDER_VIEW)
+  getByTable(
+    @CurrentUser() user: JwtPayload,
+    @Param('tableId') tableId: string,
+    @Query('restaurantId') restaurantId?: string,
+  ) {
+    return this.ordersService.getOpenByTable(user, tableId, restaurantId);
+  }
+
   @Get(':id')
   @Permissions(Permission.ORDER_VIEW)
   get(@CurrentUser() user: JwtPayload, @Param('id') id: string) {

@@ -11,6 +11,7 @@ import * as bcrypt from 'bcrypt';
 import { createHash, randomBytes } from 'crypto';
 import { User, UserDocument } from '../users/user.schema';
 import { Role, RoleDocument } from '../roles/role.schema';
+import { Restaurant, RestaurantDocument } from '../restaurants/restaurant.schema';
 import { UserStatus } from '../../common/enums';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { toObjectId } from '../../common/utils/tenant';
@@ -26,6 +27,8 @@ export class AuthService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Role.name) private readonly roleModel: Model<RoleDocument>,
+    @InjectModel(Restaurant.name)
+    private readonly restaurantModel: Model<RestaurantDocument>,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly audit: AuditService,
@@ -35,15 +38,37 @@ export class AuthService {
     return createHash('sha256').update(token).digest('hex');
   }
 
+  private async resolveRestaurantIdForUser(
+    user: UserDocument,
+    roleName: string,
+  ): Promise<string | null> {
+    if (user.restaurantId) return String(user.restaurantId);
+
+    // Owner/admin often have org-wide access with null restaurantId — bind first cafe.
+    if (roleName === 'OWNER' || roleName === 'ADMIN' || roleName === 'MANAGER') {
+      const restaurant = await this.restaurantModel
+        .findOne({ organizationId: user.organizationId, isActive: true })
+        .select('_id')
+        .exec();
+      if (restaurant) {
+        user.set('restaurantId', restaurant._id);
+        await user.save();
+        return String(restaurant._id);
+      }
+    }
+    return null;
+  }
+
   private async buildPayload(user: UserDocument): Promise<JwtPayload> {
     const role = await this.roleModel.findById(user.roleId).exec();
     if (!role) {
       throw new UnauthorizedException('Role missing');
     }
+    const restaurantId = await this.resolveRestaurantIdForUser(user, role.name);
     return {
       userId: String(user._id),
       organizationId: String(user.organizationId),
-      restaurantId: user.restaurantId ? String(user.restaurantId) : null,
+      restaurantId,
       role: role.name,
       roleId: String(role._id),
       permissions: role.permissions ?? [],
