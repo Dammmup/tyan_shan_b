@@ -16,6 +16,7 @@ import {
   AddOrderItemDto,
   CreateOrderDto,
   CreateSubOrderDto,
+  SetPrepaidDto,
   TransferOrderDto,
 } from './orders.dto';
 
@@ -71,6 +72,16 @@ export class OrdersController {
   @Permissions(Permission.ORDER_CANCEL)
   cancelOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.cancelOrder(user, id);
+  }
+
+  @Post(':id/prepaid')
+  @Permissions(Permission.ORDER_VIEW)
+  setPrepaid(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: SetPrepaidDto,
+  ) {
+    return this.ordersService.setPrepaid(user, id, dto);
   }
 
   @Post(':id/transfer')

@@ -9,9 +9,11 @@ import {
   KitchenStatus,
   OrderItemStatus,
   OrderStatus,
+  PaymentMethod,
   PrintJobStatus,
   ProductAvailability,
   ProductionCenter,
+  CashOpType,
   ShiftStatus,
   TableStatus,
 } from '../../common/enums';
@@ -31,7 +33,12 @@ import {
   PrintJobDocument,
 } from '../printers/printer.schemas';
 import { Restaurant, RestaurantDocument } from '../restaurants/restaurant.schema';
-import { Shift, ShiftDocument } from '../shifts/shift.schemas';
+import {
+  CashOperation,
+  CashOperationDocument,
+  Shift,
+  ShiftDocument,
+} from '../shifts/shift.schemas';
 import { User, UserDocument } from '../users/user.schema';
 import {
   Order,
@@ -45,6 +52,7 @@ import {
   AddOrderItemDto,
   CreateOrderDto,
   CreateSubOrderDto,
+  SetPrepaidDto,
   TransferOrderDto,
 } from './orders.dto';
 const CENTER_LABEL_RU: Record<string, string> = {
@@ -80,6 +88,8 @@ export class OrdersService {
     @InjectModel(Printer.name)
     private readonly printerModel: Model<PrinterDocument>,
     @InjectModel(Shift.name) private readonly shiftModel: Model<ShiftDocument>,
+    @InjectModel(CashOperation.name)
+    private readonly cashModel: Model<CashOperationDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Restaurant.name)
     private readonly restaurantModel: Model<RestaurantDocument>,
@@ -154,6 +164,9 @@ export class OrdersService {
             discountTiyns: 0,
             serviceChargeTiyns: 0,
             totalTiyns: 0,
+            prepaidTiyns: 0,
+            prepaidMethod: null,
+            prepaidAt: null,
             guests: dto.guests ?? 1,
             note: dto.note,
             subOrderSeq: 0,
@@ -181,6 +194,9 @@ export class OrdersService {
           discountTiyns: 0,
           serviceChargeTiyns: 0,
           totalTiyns: 0,
+          prepaidTiyns: 0,
+          prepaidMethod: null,
+          prepaidAt: null,
           guests: dto.guests ?? 1,
           note: dto.note,
           subOrderSeq: 0,
@@ -367,6 +383,89 @@ export class OrdersService {
     return this.getById(user, orderId);
   }
 
+  async setPrepaid(user: JwtPayload, orderId: string, dto: SetPrepaidDto) {
+    const order = await this.orderModel
+      .findOne({
+        _id: toObjectId(orderId),
+        organizationId: toObjectId(user.organizationId),
+      })
+      .exec();
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === OrderStatus.PAID || order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Order is closed');
+    }
+
+    const next = Math.trunc(dto.amountTiyns);
+    if (next > 0 && next > order.totalTiyns && order.totalTiyns > 0) {
+      // Allow prepaid above current total (guest may order more later), but cap soft warning — no hard fail
+    }
+    const method =
+      next <= 0
+        ? null
+        : dto.method === PaymentMethod.CARD
+          ? PaymentMethod.CARD
+          : PaymentMethod.CASH;
+
+    const prev = Math.trunc(order.prepaidTiyns || 0);
+    const prevMethod = order.prepaidMethod;
+
+    const shift = await this.shiftModel
+      .findOne({
+        restaurantId: order.restaurantId,
+        status: ShiftStatus.OPEN,
+      })
+      .exec();
+
+    // Adjust cash drawer for cash prepaid changes
+    if (shift) {
+      if (prev > 0 && prevMethod === PaymentMethod.CASH) {
+        await this.cashModel.create({
+          shiftId: shift._id,
+          organizationId: order.organizationId,
+          restaurantId: order.restaurantId,
+          type: CashOpType.CASH_OUT,
+          amountTiyns: prev,
+          reason: `Сторно предоплаты заказ ${String(order._id).slice(-6)}`,
+          createdBy: toObjectId(user.userId),
+        });
+      }
+      if (next > 0 && method === PaymentMethod.CASH) {
+        await this.cashModel.create({
+          shiftId: shift._id,
+          organizationId: order.organizationId,
+          restaurantId: order.restaurantId,
+          type: CashOpType.CASH_IN,
+          amountTiyns: next,
+          reason: `Предоплата заказ ${String(order._id).slice(-6)}`,
+          createdBy: toObjectId(user.userId),
+        });
+      }
+    }
+
+    order.prepaidTiyns = next;
+    order.prepaidMethod = method;
+    order.prepaidNote = next > 0 ? dto.note : undefined;
+    order.prepaidAt = next > 0 ? new Date() : null;
+    await order.save();
+
+    this.events.emitToRestaurant(String(order.restaurantId), 'ORDER_PREPAID', {
+      orderId,
+      prepaidTiyns: next,
+      prepaidMethod: method,
+    });
+    await this.audit.log({
+      organizationId: user.organizationId,
+      restaurantId: order.restaurantId,
+      userId: user.userId,
+      action: 'ORDER_PREPAID',
+      entityType: 'Order',
+      entityId: orderId,
+      meta: { prepaidTiyns: next, prepaidMethod: method, note: dto.note },
+    });
+
+    return this.getById(user, orderId);
+  }
+
   /**
    * Move dishes to another table (new or existing open order).
    * Updates kitchen tickets' table/order when items were already sent.
@@ -452,6 +551,9 @@ export class OrdersService {
         discountTiyns: 0,
         serviceChargeTiyns: 0,
         totalTiyns: 0,
+        prepaidTiyns: 0,
+        prepaidMethod: null,
+        prepaidAt: null,
         guests: source.guests || 0,
         subOrderSeq: 0,
       });
@@ -817,6 +919,12 @@ export class OrdersService {
       ...(totals.discountTiyns > 0 ? [`Скидка: −${money(totals.discountTiyns)}`] : []),
       `Обслуживание ${servicePercent}%: ${money(totals.serviceChargeTiyns)}`,
       `Итого: ${money(totals.totalTiyns)}`,
+      ...((order.prepaidTiyns || 0) > 0
+        ? [
+            `Предоплата: −${money(order.prepaidTiyns)}`,
+            `К оплате: ${money(Math.max(0, totals.totalTiyns - order.prepaidTiyns))}`,
+          ]
+        : []),
     ];
 
     const printer =

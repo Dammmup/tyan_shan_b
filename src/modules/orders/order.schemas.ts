@@ -3,6 +3,7 @@ import { HydratedDocument, Types } from 'mongoose';
 import {
   OrderItemStatus,
   OrderStatus,
+  PaymentMethod,
   ProductionCenter,
 } from '../../common/enums';
 
@@ -139,6 +140,19 @@ export class Order {
 
   @Prop({ type: Types.ObjectId, ref: 'Discount', default: null })
   discountId!: Types.ObjectId | null;
+
+  /** Guest deposit / prepayment in tiyns (applied before final payment). */
+  @Prop({ required: true, default: 0, min: 0 })
+  prepaidTiyns!: number;
+
+  @Prop({ type: String, enum: [PaymentMethod.CASH, PaymentMethod.CARD], default: null })
+  prepaidMethod!: PaymentMethod.CASH | PaymentMethod.CARD | null;
+
+  @Prop()
+  prepaidNote?: string;
+
+  @Prop({ type: Date, default: null })
+  prepaidAt!: Date | null;
 
   @Prop({ default: 0 })
   guests!: number;

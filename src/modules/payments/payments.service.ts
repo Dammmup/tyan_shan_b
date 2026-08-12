@@ -48,9 +48,11 @@ export class PaymentsService {
     }
 
     const amount = Math.trunc(dto.amountTiyns);
-    if (amount < order.totalTiyns) {
+    const prepaid = Math.trunc(order.prepaidTiyns || 0);
+    const dueTiyns = Math.max(0, Math.trunc(order.totalTiyns) - prepaid);
+    if (amount < dueTiyns) {
       throw new BadRequestException(
-        `Payment ${amount} tiyns is less than order total ${order.totalTiyns}`,
+        `Payment ${amount} tiyns is less than remaining due ${dueTiyns} (total ${order.totalTiyns} − prepaid ${prepaid})`,
       );
     }
 
@@ -60,8 +62,8 @@ export class PaymentsService {
         throw new BadRequestException('splits required for SPLIT payment');
       }
       const splitSum = splits.reduce((s, p) => s + Math.trunc(p.amountTiyns), 0);
-      if (splitSum < order.totalTiyns) {
-        throw new BadRequestException('Split sum less than order total');
+      if (splitSum < dueTiyns) {
+        throw new BadRequestException('Split sum less than remaining due');
       }
     } else {
       splits = [{ method: dto.method, amountTiyns: amount }];

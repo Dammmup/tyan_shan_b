@@ -16,7 +16,12 @@ import {
   PrintJobSchema,
 } from '../printers/printer.schemas';
 import { Restaurant, RestaurantSchema } from '../restaurants/restaurant.schema';
-import { Shift, ShiftSchema } from '../shifts/shift.schemas';
+import {
+  CashOperation,
+  CashOperationSchema,
+  Shift,
+  ShiftSchema,
+} from '../shifts/shift.schemas';
 import { User, UserSchema } from '../users/user.schema';
 import {
   Order,
@@ -42,6 +47,7 @@ import { OrdersController } from './orders.controller';
       { name: Printer.name, schema: PrinterSchema },
       { name: PrintJob.name, schema: PrintJobSchema },
       { name: Shift.name, schema: ShiftSchema },
+      { name: CashOperation.name, schema: CashOperationSchema },
       { name: User.name, schema: UserSchema },
       { name: Restaurant.name, schema: RestaurantSchema },
     ]),

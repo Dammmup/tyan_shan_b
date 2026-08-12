@@ -84,3 +84,20 @@ export class TransferOrderDto {
   @IsMongoId({ each: true })
   itemIds?: string[];
 }
+
+export class SetPrepaidDto {
+  @ApiProperty({ description: 'Prepaid amount in tiyns (0 clears)' })
+  @IsInt()
+  @Min(0)
+  amountTiyns!: number;
+
+  @ApiPropertyOptional({ enum: ['CASH', 'CARD'] })
+  @IsOptional()
+  @IsString()
+  method?: 'CASH' | 'CARD';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
