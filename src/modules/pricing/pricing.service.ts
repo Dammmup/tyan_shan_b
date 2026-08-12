@@ -69,8 +69,8 @@ export class PricingService {
     }
 
     const unitPriceTiyns = priceDoc
-      ? Math.trunc(priceDoc.priceTiyns)
-      : Math.trunc(product.basePriceTiyns);
+      ? Math.trunc(Number(priceDoc.priceTiyns) || 0)
+      : Math.trunc(Number(product.basePriceTiyns) || 0);
 
     return { product, unitPriceTiyns };
   }

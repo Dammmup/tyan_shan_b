@@ -142,7 +142,7 @@ export class Order {
   discountId!: Types.ObjectId | null;
 
   /** Guest deposit / prepayment in tiyns (applied before final payment). */
-  @Prop({ required: true, default: 0, min: 0 })
+  @Prop({ default: 0, min: 0 })
   prepaidTiyns!: number;
 
   @Prop({ type: String, enum: [PaymentMethod.CASH, PaymentMethod.CARD], default: null })

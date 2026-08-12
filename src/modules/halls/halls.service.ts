@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { TableStatus } from '../../common/enums';
+import { OrderStatus, TableStatus } from '../../common/enums';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { resolveRestaurantId, tenantFilter, toObjectId } from '../../common/utils/tenant';
 import { AuditService } from '../audit/audit.service';
 import { EventsGateway } from '../events/events.gateway';
+import { Order, OrderDocument } from '../orders/order.schemas';
 import { Hall, HallDocument, Table, TableDocument } from './hall-table.schema';
 import {
   CreateHallDto,
@@ -19,6 +20,7 @@ export class HallsService {
   constructor(
     @InjectModel(Hall.name) private readonly hallModel: Model<HallDocument>,
     @InjectModel(Table.name) private readonly tableModel: Model<TableDocument>,
+    @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
     private readonly audit: AuditService,
     private readonly events: EventsGateway,
   ) {}
@@ -83,11 +85,44 @@ export class HallsService {
     return doc;
   }
 
-  listTables(user: JwtPayload, restaurantId?: string, hallId?: string) {
+  async listTables(user: JwtPayload, restaurantId?: string, hallId?: string) {
     const tenant = tenantFilter(user, restaurantId);
     const q: Record<string, unknown> = { ...tenant, isActive: true };
     if (hallId) q.hallId = toObjectId(hallId);
-    return this.tableModel.find(q).sort({ name: 1 }).exec();
+    const tables = await this.tableModel.find(q).sort({ name: 1 }).exec();
+
+    const openOrders = await this.orderModel
+      .find({
+        ...tenant,
+        status: {
+          $in: [
+            OrderStatus.OPEN,
+            OrderStatus.IN_PROGRESS,
+            OrderStatus.READY,
+            OrderStatus.SERVED,
+          ],
+        },
+      })
+      .select('_id tableId')
+      .lean()
+      .exec();
+
+    const orderByTable = new Map<string, string>();
+    for (const o of openOrders) {
+      orderByTable.set(String(o.tableId), String(o._id));
+    }
+
+    return tables.map((table) => {
+      const plain = table.toObject();
+      const openId = orderByTable.get(String(table._id));
+      if (openId) {
+        plain.currentOrderId = openId as unknown as typeof plain.currentOrderId;
+        if (plain.status === TableStatus.FREE) {
+          plain.status = TableStatus.OCCUPIED;
+        }
+      }
+      return plain;
+    });
   }
 
   async updateTable(user: JwtPayload, id: string, dto: UpdateTableDto) {

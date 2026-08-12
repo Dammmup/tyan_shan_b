@@ -4,6 +4,7 @@ import {
   IsMongoId,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -29,6 +30,7 @@ export class OrderItemInputDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   note?: string;
 }
 

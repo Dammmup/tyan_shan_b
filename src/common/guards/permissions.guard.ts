@@ -28,6 +28,15 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('No user in request');
     }
 
+    // Owner/admin/manager always pass — JWT may lag behind role permission sync.
+    if (
+      user.role === 'OWNER' ||
+      user.role === 'ADMIN' ||
+      user.role === 'MANAGER'
+    ) {
+      return true;
+    }
+
     const hasAll = required.every((p) => user.permissions?.includes(p));
     if (!hasAll) {
       throw new ForbiddenException('Insufficient permissions');

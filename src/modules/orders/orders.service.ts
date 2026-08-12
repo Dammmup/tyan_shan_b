@@ -112,29 +112,40 @@ export class OrdersService {
     const items = await this.itemModel.find({ orderId }).exec();
     const order = await this.orderModel.findById(orderId).exec();
     if (!order) return null;
+
     const servicePercent = await this.servicePercentFor(order.restaurantId);
-    const totals = this.pricing.computeOrderTotals(items, order.discountTiyns, servicePercent);
-    order.subtotalTiyns = totals.subtotalTiyns;
-    order.discountTiyns = totals.discountTiyns;
-    order.serviceChargeTiyns = totals.serviceChargeTiyns;
-    order.totalTiyns = totals.totalTiyns;
+    const discountTiyns = order.discountTiyns ?? 0;
+    const totals = this.pricing.computeOrderTotals(items, discountTiyns, servicePercent);
+
+    let nextStatus = order.status;
     if (
       order.status !== OrderStatus.PAID &&
       order.status !== OrderStatus.CANCELLED
     ) {
       const active = items.filter((i) => i.status !== OrderItemStatus.CANCELLED);
       if (active.some((i) => i.status === OrderItemStatus.SENT || i.status === OrderItemStatus.COOKING)) {
-        order.status = OrderStatus.IN_PROGRESS;
+        nextStatus = OrderStatus.IN_PROGRESS;
       } else if (active.length && active.every((i) => i.status === OrderItemStatus.READY)) {
-        order.status = OrderStatus.READY;
+        nextStatus = OrderStatus.READY;
       } else if (active.length && active.every((i) => i.status === OrderItemStatus.SERVED)) {
-        order.status = OrderStatus.SERVED;
+        nextStatus = OrderStatus.SERVED;
       } else if (active.some((i) => i.status === OrderItemStatus.NEW)) {
-        order.status = OrderStatus.OPEN;
+        nextStatus = OrderStatus.OPEN;
       }
     }
-    await order.save();
-    return order;
+
+    const $set: Record<string, unknown> = {
+      subtotalTiyns: totals.subtotalTiyns,
+      discountTiyns: totals.discountTiyns,
+      serviceChargeTiyns: totals.serviceChargeTiyns,
+      totalTiyns: totals.totalTiyns,
+      status: nextStatus,
+    };
+    // Patch missing prepaid fields on legacy orders without re-validating enum nulls
+    if (order.prepaidTiyns == null) $set.prepaidTiyns = 0;
+
+    await this.orderModel.updateOne({ _id: orderId }, { $set }).exec();
+    return this.orderModel.findById(orderId).exec();
   }
 
   async create(user: JwtPayload, dto: CreateOrderDto) {
@@ -143,6 +154,39 @@ export class OrdersService {
       .findOne({ _id: toObjectId(dto.tableId), ...tenant, isActive: true })
       .exec();
     if (!table) throw new NotFoundException('Table not found');
+
+    // Re-enter existing open order (admin/waiter opening occupied table).
+    const openStatuses = [
+      OrderStatus.OPEN,
+      OrderStatus.IN_PROGRESS,
+      OrderStatus.READY,
+      OrderStatus.SERVED,
+    ];
+    const existingOpen = await this.orderModel
+      .findOne({
+        ...tenant,
+        tableId: table._id,
+        status: { $in: openStatuses },
+      })
+      .sort({ createdAt: -1 })
+      .exec();
+    if (existingOpen) {
+      if (
+        table.status !== TableStatus.OCCUPIED ||
+        !table.currentOrderId ||
+        String(table.currentOrderId) !== String(existingOpen._id)
+      ) {
+        table.status = TableStatus.OCCUPIED;
+        table.currentOrderId = existingOpen._id as Types.ObjectId;
+        await table.save();
+        this.events.emitToRestaurant(String(table.restaurantId), 'TABLE_UPDATED', {
+          tableId: String(table._id),
+          status: TableStatus.OCCUPIED,
+          currentOrderId: String(existingOpen._id),
+        });
+      }
+      return this.getById(user, String(existingOpen._id));
+    }
 
     const openShift = await this.shiftModel
       .findOne({ ...tenant, status: ShiftStatus.OPEN })
@@ -259,6 +303,13 @@ export class OrdersService {
       note: dto.note,
     });
 
+    const productionCenter =
+      (line.productionCenter as ProductionCenter) ||
+      product.productionCenter ||
+      ProductionCenter.KITCHEN;
+
+    const note = dto.note?.trim() ? dto.note.trim().slice(0, 200) : undefined;
+
     const item = await this.itemModel.create({
       orderId: order._id,
       subOrderId: null,
@@ -268,9 +319,9 @@ export class OrdersService {
       quantity: line.quantity,
       lineTotalTiyns: line.lineTotalTiyns,
       modifiers: line.modifiers,
-      productionCenter: line.productionCenter as ProductionCenter,
+      productionCenter,
       status: OrderItemStatus.NEW,
-      note: dto.note,
+      note,
       organizationId: order.organizationId,
       restaurantId: order.restaurantId,
     });
@@ -911,12 +962,24 @@ export class OrdersService {
       typeof restaurant?.serviceChargePercent === 'number' && restaurant.serviceChargePercent >= 0
         ? restaurant.serviceChargePercent
         : SERVICE_CHARGE_PERCENT;
-    const totals = this.pricing.computeOrderTotals(items, order.discountTiyns, servicePercent);
-    order.subtotalTiyns = totals.subtotalTiyns;
-    order.discountTiyns = totals.discountTiyns;
-    order.serviceChargeTiyns = totals.serviceChargeTiyns;
-    order.totalTiyns = totals.totalTiyns;
-    await order.save();
+    const discountTiyns = order.discountTiyns ?? 0;
+    const prepaidTiyns = order.prepaidTiyns ?? 0;
+    const totals = this.pricing.computeOrderTotals(items, discountTiyns, servicePercent);
+
+    await this.orderModel
+      .updateOne(
+        { _id: order._id },
+        {
+          $set: {
+            subtotalTiyns: totals.subtotalTiyns,
+            discountTiyns: totals.discountTiyns,
+            serviceChargeTiyns: totals.serviceChargeTiyns,
+            totalTiyns: totals.totalTiyns,
+            ...(order.prepaidTiyns == null ? { prepaidTiyns: 0 } : {}),
+          },
+        },
+      )
+      .exec();
 
     const cafeName = cafeTitle(restaurant?.name);
     const waiterName = waiter?.name || user.name || '—';
@@ -935,7 +998,8 @@ export class OrdersService {
         .map((m) => m.nameSnapshot)
         .filter(Boolean)
         .join(', ');
-      return `${i.quantity}× ${i.nameSnapshot}${mods ? ` (${mods})` : ''}  ${money(i.lineTotalTiyns)}`;
+      const note = i.note?.trim() ? ` — ${i.note.trim()}` : '';
+      return `${i.quantity}× ${i.nameSnapshot}${mods ? ` (${mods})` : ''}${note}  ${money(i.lineTotalTiyns)}`;
     });
 
     const billLines = [
@@ -945,10 +1009,10 @@ export class OrdersService {
       ...(totals.discountTiyns > 0 ? [`Скидка: −${money(totals.discountTiyns)}`] : []),
       `Обслуживание ${servicePercent}%: ${money(totals.serviceChargeTiyns)}`,
       `Итого: ${money(totals.totalTiyns)}`,
-      ...((order.prepaidTiyns || 0) > 0
+      ...(prepaidTiyns > 0
         ? [
-            `Предоплата: −${money(order.prepaidTiyns)}`,
-            `К оплате: ${money(Math.max(0, totals.totalTiyns - order.prepaidTiyns))}`,
+            `Предоплата: −${money(prepaidTiyns)}`,
+            `К оплате: ${money(Math.max(0, totals.totalTiyns - prepaidTiyns))}`,
           ]
         : []),
     ];
@@ -1018,7 +1082,7 @@ export class OrdersService {
       entityId: orderId,
     });
 
-    return { ok: true, printJobId: String(printJob._id), order };
+    return { ok: true, printJobId: String(printJob._id), order: await this.orderModel.findById(order._id).exec() };
   }
 
   async list(user: JwtPayload, restaurantId?: string, status?: string) {
