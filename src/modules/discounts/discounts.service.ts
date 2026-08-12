@@ -9,6 +9,7 @@ import { Model, Types } from 'mongoose';
 import { DiscountType, OrderStatus, Permission } from '../../common/enums';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { tenantFilter, toObjectId } from '../../common/utils/tenant';
+import { canApplyOrderDiscount } from '../../common/role-permissions';
 import { AuditService } from '../audit/audit.service';
 import { EventsGateway } from '../events/events.gateway';
 import { PricingService, SERVICE_CHARGE_PERCENT } from '../pricing/pricing.service';
@@ -36,12 +37,12 @@ export class DiscountsService {
   async create(user: JwtPayload, dto: CreateDiscountDto) {
     const tenant = tenantFilter(user, dto.restaurantId);
     return this.discountModel.create({
-      name: dto.name,
+      name: dto.name.trim(),
       type: dto.type,
       value: Math.trunc(dto.value),
       maxPercentAllowed: dto.maxPercentAllowed ?? 100,
       ...tenant,
-      isActive: true,
+      isActive: dto.isActive !== false,
     });
   }
 
@@ -75,7 +76,7 @@ export class DiscountsService {
   }
 
   async apply(user: JwtPayload, orderId: string, dto: ApplyDiscountDto) {
-    if (!user.permissions.includes(Permission.ORDER_DISCOUNT)) {
+    if (!canApplyOrderDiscount(user.role, user.permissions || [])) {
       throw new ForbiddenException('ORDER_DISCOUNT required');
     }
     const order = await this.orderModel

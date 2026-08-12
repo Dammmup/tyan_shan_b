@@ -34,6 +34,11 @@ export class CreateDiscountDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsMongoId()
   restaurantId?: string;
 }
