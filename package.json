@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed": "ts-node -r tsconfig-paths/register src/seed.ts",
     "import:menu": "ts-node -r tsconfig-paths/register src/import-menu-pdf.ts",
+    "sync:roles": "ts-node -r tsconfig-paths/register src/sync-roles.ts",
     "update:centers": "ts-node -r tsconfig-paths/register src/update-centers.ts"
   },
   "dependencies": {

@@ -69,7 +69,11 @@ export class UsersService {
         restaurantId || (user.restaurantId as string),
       );
     }
-    const rows = await this.userModel.find(filter).sort({ name: 1 }).exec();
+    const rows = await this.userModel
+      .find(filter)
+      .select('+pinHash')
+      .sort({ name: 1 })
+      .exec();
     const roleIds = [...new Set(rows.map((u) => String(u.roleId)))];
     const roles = await this.roleModel
       .find({ _id: { $in: roleIds.map((id) => toObjectId(id)) } })
@@ -87,6 +91,7 @@ export class UsersService {
         _id: toObjectId(id),
         organizationId: toObjectId(user.organizationId),
       })
+      .select('+pinHash')
       .exec();
     if (!doc) throw new NotFoundException('User not found');
     return this.sanitizeWithRole(doc);
@@ -145,6 +150,7 @@ export class UsersService {
         _id: toObjectId(id),
         organizationId: toObjectId(user.organizationId),
       })
+      .select('+pinHash')
       .exec();
     if (!doc) throw new NotFoundException('User not found');
     doc.pinHash = await bcrypt.hash(dto.pin, 10);

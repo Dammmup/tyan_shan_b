@@ -15,7 +15,7 @@ export class User {
   @Prop({ required: true })
   passwordHash!: string;
 
-  @Prop()
+  @Prop({ select: false })
   pinHash?: string;
 
   @Prop({ type: Types.ObjectId, ref: 'Role', required: true })

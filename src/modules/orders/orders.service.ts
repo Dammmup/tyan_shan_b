@@ -20,6 +20,7 @@ import {
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { tenantFilter, toObjectId } from '../../common/utils/tenant';
 import { tiynsToTengeDisplay } from '../../common/utils/money';
+import { canManageSentItems } from '../../common/role-permissions';
 import { AuditService } from '../audit/audit.service';
 import { EventsGateway } from '../events/events.gateway';
 import { PricingService, SERVICE_CHARGE_PERCENT } from '../pricing/pricing.service';
@@ -295,6 +296,12 @@ export class OrdersService {
     if (item.status === OrderItemStatus.SERVED) {
       throw new BadRequestException('Cannot cancel served item');
     }
+    // Regular waiter: only unsent (NEW) items; after punch — transfer only
+    if (item.status !== OrderItemStatus.NEW && !canManageSentItems(user.role)) {
+      throw new BadRequestException(
+        'После пробития блюдо нельзя удалить — перенесите на свободный стол или обратитесь к старшему/админу',
+      );
+    }
     item.status = OrderItemStatus.CANCELLED;
     await item.save();
     const order = await this.recalcOrder(item.orderId as Types.ObjectId);
@@ -325,6 +332,18 @@ export class OrdersService {
     const hasServed = items.some((i) => i.status === OrderItemStatus.SERVED);
     if (hasServed) {
       throw new BadRequestException('Cannot cancel order with served items');
+    }
+    if (
+      user.role === 'WAITER' &&
+      items.some(
+        (i) =>
+          i.status !== OrderItemStatus.NEW &&
+          i.status !== OrderItemStatus.CANCELLED,
+      )
+    ) {
+      throw new BadRequestException(
+        'После пробития заказ нельзя отменить — перенесите блюда или обратитесь к старшему/админу',
+      );
     }
 
     await this.itemModel.updateMany(
@@ -493,6 +512,13 @@ export class OrdersService {
     if (!targetTable) throw new NotFoundException('Target table not found');
     if (String(targetTable._id) === String(source.tableId)) {
       throw new BadRequestException('Same table');
+    }
+
+    // Regular waiter may only move dishes to a free table
+    if (user.role === 'WAITER' && targetTable.status !== TableStatus.FREE) {
+      throw new BadRequestException(
+        'Обычный официант может переносить блюда только на свободный стол',
+      );
     }
 
     const transferableStatuses = new Set([

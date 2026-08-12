@@ -4,12 +4,12 @@ import { randomBytes } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
-  ALL_PERMISSIONS,
   Permission,
   ProductionCenter,
   TableStatus,
   UserStatus,
 } from './common/enums';
+import { ROLE_PERMISSIONS } from './common/role-permissions';
 import { preferPublicDns } from './common/utils/mongo-dns';
 import { OrganizationSchema } from './modules/organizations/organization.schema';
 import { RestaurantSchema } from './modules/restaurants/restaurant.schema';
@@ -48,52 +48,7 @@ function loadEnv() {
 loadEnv();
 preferPublicDns();
 
-const ROLE_PERMS: Record<string, Permission[]> = {
-  OWNER: ALL_PERMISSIONS as Permission[],
-  ADMIN: ALL_PERMISSIONS as Permission[],
-  MANAGER: [
-    Permission.USER_MANAGE,
-    Permission.MENU_MANAGE,
-    Permission.MENU_STOPLIST,
-    Permission.HALL_MANAGE,
-    Permission.TABLE_MANAGE,
-    Permission.ORDER_CREATE,
-    Permission.ORDER_VIEW,
-    Permission.ORDER_CANCEL,
-    Permission.ORDER_DISCOUNT,
-    Permission.KITCHEN_VIEW,
-    Permission.KITCHEN_MANAGE,
-    Permission.PAYMENT_CREATE,
-    Permission.PAYMENT_REFUND,
-    Permission.SHIFT_OPEN,
-    Permission.SHIFT_CLOSE,
-    Permission.SHIFT_CASH,
-    Permission.PRINTER_MANAGE,
-    Permission.PRINT_JOB_MANAGE,
-    Permission.REPORT_VIEW,
-    Permission.AUDIT_VIEW,
-    Permission.DISCOUNT_MANAGE,
-  ],
-  CASHIER: [
-    Permission.ORDER_VIEW,
-    Permission.ORDER_DISCOUNT,
-    Permission.PAYMENT_CREATE,
-    Permission.SHIFT_OPEN,
-    Permission.SHIFT_CLOSE,
-    Permission.SHIFT_CASH,
-    Permission.REPORT_VIEW,
-  ],
-  WAITER: [
-    Permission.ORDER_CREATE,
-    Permission.ORDER_VIEW,
-    Permission.ORDER_CANCEL,
-    Permission.ORDER_DISCOUNT,
-    Permission.TABLE_MANAGE,
-    Permission.MENU_STOPLIST,
-  ],
-  KITCHEN: [Permission.KITCHEN_VIEW, Permission.KITCHEN_MANAGE],
-  BAR: [Permission.KITCHEN_VIEW, Permission.KITCHEN_MANAGE],
-};
+const ROLE_PERMS: Record<string, Permission[]> = ROLE_PERMISSIONS;
 
 async function seed() {
   const uri = process.env.MONGODB_URI;
@@ -162,6 +117,18 @@ async function seed() {
     passwordHash,
     pinHash: await bcrypt.hash('1111', 10),
     roleId: roleDocs.WAITER._id,
+    organizationId: org._id,
+    restaurantId: restaurant._id,
+    status: UserStatus.ACTIVE,
+    refreshTokens: [],
+  });
+
+  await User.create({
+    email: 'senior@demo.kz',
+    name: 'Senior Waiter',
+    passwordHash,
+    pinHash: await bcrypt.hash('4444', 10),
+    roleId: roleDocs.SENIOR_WAITER._id,
     organizationId: org._id,
     restaurantId: restaurant._id,
     status: UserStatus.ACTIVE,
