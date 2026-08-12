@@ -13,6 +13,7 @@ import { User, UserDocument } from '../users/user.schema';
 import { Role, RoleDocument } from '../roles/role.schema';
 import { UserStatus } from '../../common/enums';
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
+import { toObjectId } from '../../common/utils/tenant';
 import { AuditService } from '../audit/audit.service';
 import {
   ChangePasswordDto,
@@ -101,25 +102,28 @@ export class AuthService {
       pinHash: { $exists: true, $ne: null },
     };
     if (dto.restaurantId) {
-      filter.restaurantId = dto.restaurantId;
+      filter.restaurantId = toObjectId(dto.restaurantId);
     }
     const users = await this.userModel.find(filter).exec();
 
-    let matched: UserDocument | null = null;
+    const matched: UserDocument[] = [];
     for (const u of users) {
       if (u.pinHash && (await bcrypt.compare(dto.pin, u.pinHash))) {
-        matched = u;
-        break;
+        matched.push(u);
       }
     }
-    if (!matched) {
+    if (!matched.length) {
       throw new UnauthorizedException('Invalid PIN');
     }
-    const tokens = await this.issueTokens(matched);
+    if (matched.length > 1) {
+      throw new UnauthorizedException('PIN is not unique; contact admin');
+    }
+    const [userDoc] = matched;
+    const tokens = await this.issueTokens(userDoc);
     await this.audit.log({
-      organizationId: matched.organizationId,
-      restaurantId: matched.restaurantId,
-      userId: matched._id,
+      organizationId: userDoc.organizationId,
+      restaurantId: userDoc.restaurantId,
+      userId: userDoc._id,
       action: 'AUTH_LOGIN_PIN',
     });
     return {
