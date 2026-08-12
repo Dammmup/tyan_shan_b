@@ -388,7 +388,6 @@ export class OrdersService {
         kitchen,
         items: centerItems,
       });
-      this.events.emitToAgent(rid, 'PRINTER_JOB_CREATED', agentPayload);
       this.events.emitToAgent(rid, 'PRINT_JOB', agentPayload);
       this.events.emitToRestaurant(rid, 'ORDER_SUBORDER_CREATED', {
         orderId,
