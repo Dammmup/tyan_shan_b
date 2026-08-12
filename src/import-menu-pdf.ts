@@ -38,6 +38,7 @@ loadEnv();
 preferPublicDns();
 
 const CENTER_MAP: Record<string, ProductionCenter> = {
+  COLD: ProductionCenter.COLD,
   KITCHEN: ProductionCenter.KITCHEN,
   BAR: ProductionCenter.BAR,
   GRILL: ProductionCenter.GRILL,

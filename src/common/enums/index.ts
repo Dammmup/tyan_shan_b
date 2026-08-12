@@ -39,6 +39,7 @@ export enum KitchenStatus {
 }
 
 export enum ProductionCenter {
+  COLD = 'COLD',
   KITCHEN = 'KITCHEN',
   BAR = 'BAR',
   GRILL = 'GRILL',

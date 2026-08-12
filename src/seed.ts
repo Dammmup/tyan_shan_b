@@ -293,7 +293,16 @@ async function seed() {
   ]);
 
   await Printer.create({
-    name: 'Kitchen Printer',
+    name: 'Холодный цех',
+    organizationId: org._id,
+    restaurantId: restaurant._id,
+    productionCenter: ProductionCenter.COLD,
+    ip: '192.168.1.49',
+    port: 9100,
+    isActive: true,
+  });
+  await Printer.create({
+    name: 'Китайский / горячий цех',
     organizationId: org._id,
     restaurantId: restaurant._id,
     productionCenter: ProductionCenter.KITCHEN,
@@ -302,7 +311,7 @@ async function seed() {
     isActive: true,
   });
   await Printer.create({
-    name: 'Bar Printer',
+    name: 'Бар',
     organizationId: org._id,
     restaurantId: restaurant._id,
     productionCenter: ProductionCenter.BAR,
@@ -311,7 +320,7 @@ async function seed() {
     isActive: true,
   });
   await Printer.create({
-    name: 'Grill Printer',
+    name: 'Мангал',
     organizationId: org._id,
     restaurantId: restaurant._id,
     productionCenter: ProductionCenter.GRILL,
@@ -320,7 +329,7 @@ async function seed() {
     isActive: true,
   });
   await Printer.create({
-    name: 'Dessert Printer',
+    name: 'Десерты',
     organizationId: org._id,
     restaurantId: restaurant._id,
     productionCenter: ProductionCenter.DESSERT,
@@ -328,7 +337,15 @@ async function seed() {
     port: 9100,
     isActive: true,
   });
-
+  await Printer.create({
+    name: 'Предчек',
+    organizationId: org._id,
+    restaurantId: restaurant._id,
+    productionCenter: ProductionCenter.OTHER,
+    ip: '192.168.1.54',
+    port: 9100,
+    isActive: true,
+  });
   const agentToken = randomBytes(32).toString('hex');
   await AgentToken.create({
     organizationId: org._id,

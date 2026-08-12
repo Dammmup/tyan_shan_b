@@ -7,233 +7,233 @@ export const CURATED_MENU = {
   categories: [
     {
       category: 'Салаты',
-      center: 'KITCHEN',
+      center: 'COLD',
       items: [
         {
           name: 'Тигровый',
           description:
             'Полуострый салат из отварной говядины, огурцов, красного и зелёного перца, чеснока, заправленный соевым соусом.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Цезарь с курицей',
           description:
             'Классическое сочетание куриного филе, айсберга, черри, перепелиных яиц, пармезана и крутонов в соусе «Цезарь».',
           priceTenge: 2290,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Цезарь с креветками',
           description:
             'Салат «Цезарь» с креветками, айсбергом, черри, перепелиными яйцами, пармезаном и крутонами.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Цезарь с сёмгой',
           description:
             'Салат «Цезарь» с сёмгой, айсбергом, черри, перепелиными яйцами, пармезаном и крутонами.',
           priceTenge: 2890,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Гостиный двор',
           description:
             'Маринованные грибы, нежная курица, отварная говядина, солёные огурцы и хрустящие чипсы, заправленные майонезом.',
           priceTenge: 2290,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Вальдорф',
           description:
             'Свежие листья салата и шпината с куриной грудкой, помидорами черри, грецкими орехами, моцареллой и масляным соусом.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Пекинский',
           description:
             'Отварная говядина, свежий перец, морковь и огурцы, заправленные ароматным соусом.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Брокколи в чесночном соусе',
           description: 'Горячий питательный салат из брокколи с чесноком.',
           priceTenge: 2990,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Малибу',
           description:
             'Хрустящий салат с голландским сыром, помидорами, копчёной курицей и кириешками, заправленный майонезом.',
           priceTenge: 2290,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Буррата с томатами',
           description:
             'Домашняя буррата со сладкими томатами на подушке из рукколы и кедровых орешков.',
           priceTenge: 4500,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Капрезе',
           description: 'Лёгкая закуска из помидоров, моцареллы, рукколы и соуса песто.',
           priceTenge: 3150,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Баклажаны в кисло-сладком соусе',
           description:
             'Хрустящие баклажаны, черри и кинза в кисло-сладком соусе.',
           priceTenge: 2890,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Баклажаны Тянь-Шань',
           description: 'Слайсы обжаренных баклажанов, заправленные фирменным соусом.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Грибы по-кавказски',
           description:
             'Жареные шампиньоны, брынза, помидоры черри и шпинат, заправленные соевым соусом.',
           priceTenge: 2890,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Гнездо глухаря',
           description:
             'Хрустящий картофель пай, курица, солёные огурцы, яйцо и майонез.',
           priceTenge: 2290,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Фунчоза',
           description: 'Фунчоза с болгарским перцем, морковью и свежими огурцами.',
           priceTenge: 2290,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Шпинат холодный в соусе',
           description: 'Шпинат в соевом соусе с полугорьким перцем.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Картофельный салат',
           description: 'Картофельная соломка альденте с овощами в специальной заправке.',
           priceTenge: 2350,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Оливье',
           description:
             'Классический салат с отварной говядиной, картофелем, морковью, яйцом, солёными огурцами и горошком, заправленный майонезом.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Зелёный микс',
           description:
             'Микс зелени, моцарелла, помидоры черри, кедровые орешки и соус бальзамик.',
           priceTenge: 3190,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Ачичук',
           description: 'Свежие помидоры, болгарский перец и лук, заправленные растительным маслом.',
           priceTenge: 2290,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Огурцы холодные',
           description: 'Салат из огурцов и овощей в соусе.',
           priceTenge: 2350,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Греческий',
           description:
             'Помидоры, сладкий перец, огурцы, фета, шалот и маслины, заправленные оливковым маслом.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Овощи по-домашнему',
           description: 'Свежие огурцы и помидоры, заправленные растительным маслом.',
           priceTenge: 1890,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
       ],
     },
     {
       category: 'Нарезки и закуски',
-      center: 'KITCHEN',
+      center: 'COLD',
       items: [
         {
           name: 'Мясо со спаржей',
           description: 'Нежные кусочки мяса, обжаренные со свежей спаржей.',
           priceTenge: 2950,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Рыбное ассорти',
           description: 'Ассорти из трёх видов рыбы.',
           priceTenge: 7590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Мясное ассорти',
           description: 'Традиционное ассорти из казы, жая и говяжьего языка.',
           priceTenge: 6900,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Баклажаны хрустящие',
           description: 'Обжаренные до золотистой корочки баклажаны с хрустящей текстурой.',
           priceTenge: 2890,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Фаршированные дольки баклажана',
           description: 'Слайсы баклажана с мясной прослойкой в кляре, приготовленные во фритюре.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Фаршированный перец',
           description: 'Перец, фаршированный мясной начинкой.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Кавказское ассорти',
           description: 'Классический микс свежих овощей и брынзы.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Холодная говядина',
           description: 'Отварная телятина в специальной заправке.',
           priceTenge: 3590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Разносол',
           description:
             'Ассорти из маринованных и солёных овощей: огурцы, помидоры, капуста и зелёные закуски.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
         {
           name: 'Холодная курица',
           description: 'Отварная курица в соевом соусе с чесноком.',
           priceTenge: 2590,
-          productionCenter: 'KITCHEN',
+          productionCenter: 'COLD',
         },
       ],
     },

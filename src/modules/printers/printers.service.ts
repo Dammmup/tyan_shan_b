@@ -51,6 +51,7 @@ export class PrintersService {
     if (dto.connectionString !== undefined) doc.connectionString = dto.connectionString;
     if (dto.ip !== undefined) doc.ip = dto.ip;
     if (dto.port !== undefined) doc.port = dto.port;
+    if (dto.productionCenter !== undefined) doc.productionCenter = dto.productionCenter;
     if (dto.isActive !== undefined) doc.isActive = dto.isActive;
     await doc.save();
     return doc;

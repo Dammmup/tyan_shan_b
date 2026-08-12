@@ -59,6 +59,11 @@ export class UpdatePrinterDto {
   @IsString()
   ip?: string;
 
+  @ApiPropertyOptional({ enum: ProductionCenter })
+  @IsOptional()
+  @IsEnum(ProductionCenter)
+  productionCenter?: ProductionCenter;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()

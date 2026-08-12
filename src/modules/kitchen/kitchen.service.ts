@@ -12,6 +12,7 @@ import {
 import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { tenantFilter, toObjectId } from '../../common/utils/tenant';
 import { EventsGateway } from '../events/events.gateway';
+import { Table, TableDocument } from '../halls/hall-table.schema';
 import { OrderItem, OrderItemDocument } from '../orders/order.schemas';
 import { KitchenOrder, KitchenOrderDocument } from './kitchen-order.schema';
 
@@ -22,6 +23,8 @@ export class KitchenService {
     private readonly kitchenModel: Model<KitchenOrderDocument>,
     @InjectModel(OrderItem.name)
     private readonly itemModel: Model<OrderItemDocument>,
+    @InjectModel(Table.name)
+    private readonly tableModel: Model<TableDocument>,
     private readonly events: EventsGateway,
   ) {}
 
@@ -30,11 +33,23 @@ export class KitchenService {
     const q: Record<string, unknown> = { ...tenant };
     if (status) q.status = status;
     const rows = await this.kitchenModel.find(q).sort({ createdAt: 1 }).limit(200).exec();
+    const tableIds = [...new Set(rows.map((r) => String(r.tableId)))];
+    const tables = await this.tableModel
+      .find({ _id: { $in: tableIds.map((id) => toObjectId(id)) } })
+      .select('name')
+      .exec();
+    const tableNameById = new Map(tables.map((t) => [String(t._id), t.name]));
     const result = [];
     for (const row of rows) {
       const items = await this.itemModel.find({ _id: { $in: row.itemIds } }).exec();
+      const obj = row.toObject() as Record<string, unknown>;
       result.push({
-        ...row.toObject(),
+        ...obj,
+        _id: String(row._id),
+        orderId: String(row.orderId),
+        orderNumber: String(row.orderId).slice(-4).toUpperCase(),
+        tableName: tableNameById.get(String(row.tableId)) || undefined,
+        createdAt: (obj as { createdAt?: Date }).createdAt,
         items: items.map((i) => ({
           name: i.nameSnapshot,
           quantity: i.quantity,

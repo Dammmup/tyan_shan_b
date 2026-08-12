@@ -47,8 +47,12 @@ import {
   CreateSubOrderDto,
 } from './orders.dto';
 const CENTER_LABEL_RU: Record<string, string> = {
-  [ProductionCenter.KITCHEN]: 'Кухня',
+  [ProductionCenter.COLD]: 'Холодный цех',
+  [ProductionCenter.KITCHEN]: 'Китайский / горячий цех',
   [ProductionCenter.BAR]: 'Бар',
+  [ProductionCenter.GRILL]: 'Мангал',
+  [ProductionCenter.DESSERT]: 'Десерты',
+  [ProductionCenter.OTHER]: 'Предчек',
 };
 
 function cafeTitle(restaurantName?: string | null): string {
@@ -410,6 +414,7 @@ export class OrdersService {
         cafeName,
         waiterName,
         centerLabel,
+        productionCenter: center,
         subOrderSeq: order.subOrderSeq,
         lines: itemLines,
         orderNumber,
@@ -550,6 +555,7 @@ export class OrdersService {
     const agentPayload = {
       jobId: String(printJob._id),
       ticketType: 'precheck' as const,
+      productionCenter: ProductionCenter.OTHER,
       printer: {
         ip: printer?.ip || '127.0.0.1',
         port: printer?.port || 9100,
