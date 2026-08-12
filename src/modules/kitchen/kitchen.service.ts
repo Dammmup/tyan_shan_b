@@ -42,7 +42,7 @@ export class KitchenService {
     const result = [];
     for (const row of rows) {
       const items = await this.itemModel.find({ _id: { $in: row.itemIds } }).exec();
-      const obj = row.toObject() as Record<string, unknown>;
+      const obj = row.toObject() as unknown as Record<string, unknown>;
       result.push({
         ...obj,
         _id: String(row._id),
