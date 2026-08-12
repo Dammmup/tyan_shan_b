@@ -70,3 +70,17 @@ export class CreateSubOrderDto {
   @IsMongoId({ each: true })
   itemIds?: string[];
 }
+
+export class TransferOrderDto {
+  @ApiProperty({ description: 'Target table ObjectId' })
+  @IsMongoId()
+  targetTableId!: string;
+
+  @ApiPropertyOptional({
+    description: 'Item ids to move; omit to transfer all non-served active items',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  itemIds?: string[];
+}

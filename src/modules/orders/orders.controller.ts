@@ -16,6 +16,7 @@ import {
   AddOrderItemDto,
   CreateOrderDto,
   CreateSubOrderDto,
+  TransferOrderDto,
 } from './orders.dto';
 
 @ApiTags('orders')
@@ -70,6 +71,16 @@ export class OrdersController {
   @Permissions(Permission.ORDER_CANCEL)
   cancelOrder(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
     return this.ordersService.cancelOrder(user, id);
+  }
+
+  @Post(':id/transfer')
+  @Permissions(Permission.ORDER_CREATE)
+  transfer(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: TransferOrderDto,
+  ) {
+    return this.ordersService.transferToTable(user, id, dto);
   }
 
   @Post(':id/suborders')

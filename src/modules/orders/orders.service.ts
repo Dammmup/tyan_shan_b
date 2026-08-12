@@ -45,6 +45,7 @@ import {
   AddOrderItemDto,
   CreateOrderDto,
   CreateSubOrderDto,
+  TransferOrderDto,
 } from './orders.dto';
 const CENTER_LABEL_RU: Record<string, string> = {
   [ProductionCenter.COLD]: 'Холодный цех',
@@ -364,6 +365,216 @@ export class OrdersService {
     });
 
     return this.getById(user, orderId);
+  }
+
+  /**
+   * Move dishes to another table (new or existing open order).
+   * Updates kitchen tickets' table/order when items were already sent.
+   */
+  async transferToTable(user: JwtPayload, orderId: string, dto: TransferOrderDto) {
+    const source = await this.orderModel
+      .findOne({
+        _id: toObjectId(orderId),
+        organizationId: toObjectId(user.organizationId),
+      })
+      .exec();
+    if (!source) throw new NotFoundException('Order not found');
+    if (source.status === OrderStatus.PAID || source.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException('Order is closed');
+    }
+
+    const targetTable = await this.tableModel
+      .findOne({
+        _id: toObjectId(dto.targetTableId),
+        organizationId: toObjectId(user.organizationId),
+        restaurantId: source.restaurantId,
+        isActive: true,
+      })
+      .exec();
+    if (!targetTable) throw new NotFoundException('Target table not found');
+    if (String(targetTable._id) === String(source.tableId)) {
+      throw new BadRequestException('Same table');
+    }
+
+    const transferableStatuses = new Set([
+      OrderItemStatus.NEW,
+      OrderItemStatus.SENT,
+      OrderItemStatus.COOKING,
+      OrderItemStatus.READY,
+    ]);
+
+    const itemQuery: Record<string, unknown> = {
+      orderId: source._id,
+      status: { $in: [...transferableStatuses] },
+    };
+    if (dto.itemIds?.length) {
+      itemQuery._id = { $in: dto.itemIds.map((id) => toObjectId(id)) };
+    }
+    const items = await this.itemModel.find(itemQuery).exec();
+    if (!items.length) {
+      throw new BadRequestException('No items to transfer');
+    }
+    if (dto.itemIds?.length && items.length !== dto.itemIds.length) {
+      throw new BadRequestException('Some items cannot be transferred');
+    }
+
+    let target = await this.orderModel
+      .findOne({
+        tableId: targetTable._id,
+        restaurantId: source.restaurantId,
+        status: {
+          $in: [
+            OrderStatus.OPEN,
+            OrderStatus.IN_PROGRESS,
+            OrderStatus.READY,
+            OrderStatus.SERVED,
+          ],
+        },
+      })
+      .exec();
+
+    if (!target) {
+      const openShift = await this.shiftModel
+        .findOne({
+          restaurantId: source.restaurantId,
+          status: ShiftStatus.OPEN,
+        })
+        .exec();
+      target = await this.orderModel.create({
+        organizationId: source.organizationId,
+        restaurantId: source.restaurantId,
+        hallId: targetTable.hallId,
+        tableId: targetTable._id,
+        waiterId: toObjectId(user.userId),
+        shiftId: openShift?._id ?? source.shiftId,
+        status: OrderStatus.OPEN,
+        subtotalTiyns: 0,
+        discountTiyns: 0,
+        serviceChargeTiyns: 0,
+        totalTiyns: 0,
+        guests: source.guests || 0,
+        subOrderSeq: 0,
+      });
+      targetTable.status = TableStatus.OCCUPIED;
+      targetTable.currentOrderId = target._id as Types.ObjectId;
+      await targetTable.save();
+    }
+
+    const movedIds = items.map((i) => i._id as Types.ObjectId);
+    const movedIdSet = new Set(movedIds.map((id) => String(id)));
+
+    for (const item of items) {
+      item.orderId = target._id as Types.ObjectId;
+      await item.save();
+    }
+
+    // Kitchen tickets that reference moved items
+    const kitchenTickets = await this.kitchenModel
+      .find({
+        orderId: source._id,
+        status: { $nin: [KitchenStatus.SERVED, KitchenStatus.CANCELLED] },
+        itemIds: { $in: movedIds },
+      })
+      .exec();
+
+    for (const ko of kitchenTickets) {
+      const stay = (ko.itemIds || []).filter((id) => !movedIdSet.has(String(id)));
+      const moved = (ko.itemIds || []).filter((id) => movedIdSet.has(String(id)));
+      if (!moved.length) continue;
+
+      if (!stay.length) {
+        ko.orderId = target._id as Types.ObjectId;
+        ko.tableId = targetTable._id as Types.ObjectId;
+        await ko.save();
+      } else {
+        ko.itemIds = stay;
+        await ko.save();
+        await this.kitchenModel.create({
+          orderId: target._id,
+          subOrderId: ko.subOrderId,
+          organizationId: ko.organizationId,
+          restaurantId: ko.restaurantId,
+          tableId: targetTable._id,
+          productionCenter: ko.productionCenter,
+          status: ko.status,
+          itemIds: moved,
+          acceptedBy: ko.acceptedBy,
+          acceptedAt: ko.acceptedAt,
+          readyAt: ko.readyAt,
+          servedAt: ko.servedAt,
+        });
+      }
+    }
+
+    await this.recalcOrder(source._id as Types.ObjectId);
+    await this.recalcOrder(target._id as Types.ObjectId);
+
+    const sourceLeft = await this.itemModel
+      .find({
+        orderId: source._id,
+        status: { $ne: OrderItemStatus.CANCELLED },
+      })
+      .exec();
+    const sourceActive = sourceLeft.filter((i) => i.status !== OrderItemStatus.SERVED);
+
+    if (!sourceLeft.length || !sourceActive.length) {
+      // No remaining billable/active items — close source and free table
+      if (!sourceLeft.length) {
+        source.status = OrderStatus.CANCELLED;
+        source.subtotalTiyns = 0;
+        source.discountTiyns = 0;
+        source.serviceChargeTiyns = 0;
+        source.totalTiyns = 0;
+        await source.save();
+      }
+      const oldTable = await this.tableModel.findById(source.tableId).exec();
+      if (oldTable && String(oldTable.currentOrderId) === String(source._id)) {
+        // Only free if no served items left unpaid — if served remain, keep occupied
+        if (!sourceLeft.some((i) => i.status === OrderItemStatus.SERVED)) {
+          oldTable.status = TableStatus.FREE;
+          oldTable.currentOrderId = null;
+          await oldTable.save();
+          this.events.emitToRestaurant(String(source.restaurantId), 'TABLE_UPDATED', {
+            _id: oldTable._id,
+            status: TableStatus.FREE,
+            currentOrderId: null,
+          });
+        }
+      }
+    }
+
+    this.events.emitToRestaurant(String(source.restaurantId), 'TABLE_UPDATED', {
+      _id: targetTable._id,
+      status: TableStatus.OCCUPIED,
+      currentOrderId: target._id,
+    });
+    this.events.emitToRestaurant(String(source.restaurantId), 'ORDER_TRANSFERRED', {
+      fromOrderId: orderId,
+      toOrderId: String(target._id),
+      itemIds: [...movedIdSet],
+      targetTableId: String(targetTable._id),
+    });
+    this.events.emitToRestaurant(String(source.restaurantId), 'KITCHEN_UPDATED', {
+      orderId: String(target._id),
+    });
+    await this.audit.log({
+      organizationId: user.organizationId,
+      restaurantId: source.restaurantId,
+      userId: user.userId,
+      action: 'ORDER_TRANSFER',
+      entityType: 'Order',
+      entityId: orderId,
+      meta: {
+        targetOrderId: String(target._id),
+        targetTableId: String(targetTable._id),
+        itemIds: [...movedIdSet],
+      },
+    });
+
+    return {
+      source: await this.getById(user, orderId),
+      target: await this.getById(user, String(target._id)),
+    };
   }
 
   async createSubOrder(user: JwtPayload, orderId: string, dto: CreateSubOrderDto) {
