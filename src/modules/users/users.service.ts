@@ -71,7 +71,7 @@ export class UsersService {
     }
     const rows = await this.userModel
       .find(filter)
-      .select('+pinHash')
+      .select('+pinHash +pinCode')
       .sort({ name: 1 })
       .exec();
     const roleIds = [...new Set(rows.map((u) => String(u.roleId)))];
@@ -91,7 +91,7 @@ export class UsersService {
         _id: toObjectId(id),
         organizationId: toObjectId(user.organizationId),
       })
-      .select('+pinHash')
+      .select('+pinHash +pinCode')
       .exec();
     if (!doc) throw new NotFoundException('User not found');
     return this.sanitizeWithRole(doc);
@@ -150,10 +150,11 @@ export class UsersService {
         _id: toObjectId(id),
         organizationId: toObjectId(user.organizationId),
       })
-      .select('+pinHash')
+      .select('+pinHash +pinCode')
       .exec();
     if (!doc) throw new NotFoundException('User not found');
     doc.pinHash = await bcrypt.hash(dto.pin, 10);
+    doc.pinCode = dto.pin.trim();
     await doc.save();
     await this.audit.log({
       organizationId: user.organizationId,
@@ -163,7 +164,7 @@ export class UsersService {
       entityType: 'User',
       entityId: id,
     });
-    return { ok: true };
+    return this.sanitizeWithRole(doc);
   }
 
   private async sanitizeWithRole(doc: UserDocument) {
@@ -183,6 +184,7 @@ export class UsersService {
       restaurantId: doc.restaurantId ? String(doc.restaurantId) : null,
       status: doc.status,
       hasPin: Boolean(doc.pinHash),
+      pinCode: doc.pinCode || null,
       createdAt: (doc as unknown as { createdAt?: Date }).createdAt,
     };
   }

@@ -18,6 +18,10 @@ export class User {
   @Prop({ select: false })
   pinHash?: string;
 
+  /** Plain PIN for owner/admin display (login still uses pinHash). */
+  @Prop({ select: false })
+  pinCode?: string;
+
   @Prop({ type: Types.ObjectId, ref: 'Role', required: true })
   roleId!: Types.ObjectId;
 
