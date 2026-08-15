@@ -163,6 +163,14 @@ export class Order {
 
   @Prop({ default: 0 })
   subOrderSeq!: number;
+
+  /** When the order was paid (for daily reports). */
+  @Prop({ type: Date, default: null, index: true })
+  paidAt!: Date | null;
+
+  /** First successful precheck print (waiters may print only once). */
+  @Prop({ type: Date, default: null })
+  precheckPrintedAt!: Date | null;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

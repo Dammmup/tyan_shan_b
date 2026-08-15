@@ -6,7 +6,10 @@ import { JwtPayload } from '../../common/interfaces/jwt-payload.interface';
 import { tenantFilter, toObjectId } from '../../common/utils/tenant';
 import { Order, OrderDocument, OrderItem, OrderItemDocument } from '../orders/order.schemas';
 import { Payment, PaymentDocument } from '../payments/payment.schemas';
+import { Restaurant, RestaurantDocument } from '../restaurants/restaurant.schema';
 import { Shift, ShiftDocument } from '../shifts/shift.schemas';
+import { Table, TableDocument } from '../halls/hall-table.schema';
+import { User, UserDocument } from '../users/user.schema';
 
 @Injectable()
 export class ReportsService {
@@ -15,54 +18,151 @@ export class ReportsService {
     @InjectModel(OrderItem.name) private readonly itemModel: Model<OrderItemDocument>,
     @InjectModel(Payment.name) private readonly paymentModel: Model<PaymentDocument>,
     @InjectModel(Shift.name) private readonly shiftModel: Model<ShiftDocument>,
+    @InjectModel(Restaurant.name) private readonly restaurantModel: Model<RestaurantDocument>,
+    @InjectModel(Table.name) private readonly tableModel: Model<TableDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
-  private todayRange() {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-    return { start, end };
+  /** Local calendar day in restaurant timezone (default Asia/Almaty = UTC+5). */
+  private async dayRange(restaurantId: unknown, dateStr?: string) {
+    let tz = 'Asia/Almaty';
+    if (restaurantId) {
+      const r = await this.restaurantModel
+        .findById(restaurantId)
+        .select('timezone')
+        .lean()
+        .exec();
+      if (r?.timezone) tz = r.timezone;
+    }
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    const day =
+      dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : today;
+
+    // Resolve offset for this timezone (KZ has no DST; still compute generally).
+    const probe = new Date(`${day}T12:00:00.000Z`);
+    const utcHour = probe.getUTCHours();
+    const localHour = Number(
+      new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        hour: 'numeric',
+        hour12: false,
+        hourCycle: 'h23',
+      }).format(probe),
+    );
+    let offsetHours = localHour - utcHour;
+    if (offsetHours > 14) offsetHours -= 24;
+    if (offsetHours < -14) offsetHours += 24;
+
+    const start = new Date(`${day}T00:00:00.000Z`);
+    start.setUTCHours(start.getUTCHours() - offsetHours);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+    return { start, end, timezone: tz, day };
   }
 
-  async dashboardToday(user: JwtPayload, restaurantId?: string) {
+  async dashboardToday(user: JwtPayload, restaurantId?: string, date?: string) {
     const tenant = tenantFilter(user, restaurantId);
-    const { start, end } = this.todayRange();
-    const orders = await this.orderModel
+    const { start, end } = await this.dayRange(tenant.restaurantId, date);
+
+    const paidToday = await this.orderModel
       .find({
         ...tenant,
-        createdAt: { $gte: start, $lte: end },
+        status: OrderStatus.PAID,
+        $or: [
+          { paidAt: { $gte: start, $lte: end } },
+          // legacy: paid before paidAt existed
+          { paidAt: null, updatedAt: { $gte: start, $lte: end } },
+        ],
       })
+      .sort({ paidAt: -1, updatedAt: -1 })
+      .limit(100)
       .exec();
-    const paid = orders.filter((o) => o.status === OrderStatus.PAID);
-    const revenueTiyns = paid.reduce((s, o) => s + o.totalTiyns, 0);
-    const openCount = orders.filter(
-      (o) => o.status !== OrderStatus.PAID && o.status !== OrderStatus.CANCELLED,
-    ).length;
+
+    const openOrders = await this.orderModel
+      .find({
+        ...tenant,
+        status: {
+          $in: [
+            OrderStatus.OPEN,
+            OrderStatus.IN_PROGRESS,
+            OrderStatus.READY,
+            OrderStatus.SERVED,
+          ],
+        },
+      })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .exec();
+
+    const revenueTiyns = paidToday.reduce((s, o) => s + (o.totalTiyns || 0), 0);
+    const guestsCount = paidToday.reduce((s, o) => s + (o.guests || 0), 0);
+
+    const tableIds = [
+      ...new Set(
+        [...paidToday, ...openOrders].map((o) => String(o.tableId)).filter(Boolean),
+      ),
+    ];
+    const waiterIds = [
+      ...new Set(paidToday.map((o) => String(o.waiterId)).filter(Boolean)),
+    ];
+    const [tables, waiters] = await Promise.all([
+      this.tableModel.find({ _id: { $in: tableIds } }).select('name').exec(),
+      this.userModel.find({ _id: { $in: waiterIds } }).select('name').exec(),
+    ]);
+    const tableName = new Map(tables.map((t) => [String(t._id), t.name]));
+    const waiterName = new Map(waiters.map((w) => [String(w._id), w.name]));
+
+    const mapOrder = (o: OrderDocument) => ({
+      _id: String(o._id),
+      status: o.status,
+      totalTiyns: o.totalTiyns,
+      prepaidTiyns: o.prepaidTiyns || 0,
+      guests: o.guests || 0,
+      tableId: String(o.tableId),
+      tableName: tableName.get(String(o.tableId)) || undefined,
+      waiterId: String(o.waiterId),
+      waiterName: waiterName.get(String(o.waiterId)) || undefined,
+      createdAt: (o as unknown as { createdAt?: Date }).createdAt,
+      paidAt: o.paidAt || (o as unknown as { updatedAt?: Date }).updatedAt || null,
+      number: String(o._id).slice(-4).toUpperCase(),
+    });
+
     return {
-      ordersTotal: orders.length,
-      ordersPaid: paid.length,
-      ordersOpen: openCount,
+      ordersTotal: paidToday.length + openOrders.length,
+      ordersPaid: paidToday.length,
+      ordersOpen: openOrders.length,
       revenueTiyns,
-      averageCheckTiyns: paid.length ? Math.trunc(revenueTiyns / paid.length) : 0,
-      guestsCount: paid.reduce((s, o) => s + (o.guests || 0), 0),
-      // aliases for frontend dashboard
+      averageCheckTiyns: paidToday.length
+        ? Math.trunc(revenueTiyns / paidToday.length)
+        : 0,
+      guestsCount,
       revenueTodayTiyns: revenueTiyns,
-      ordersCount: paid.length,
-      avgCheckTiyns: paid.length ? Math.trunc(revenueTiyns / paid.length) : 0,
+      ordersCount: paidToday.length,
+      avgCheckTiyns: paidToday.length
+        ? Math.trunc(revenueTiyns / paidToday.length)
+        : 0,
+      paidOrders: paidToday.map(mapOrder),
+      openOrders: openOrders.map(mapOrder),
     };
   }
 
-  async byWaiters(user: JwtPayload, restaurantId?: string) {
+  async byWaiters(user: JwtPayload, restaurantId?: string, date?: string) {
     const tenant = tenantFilter(user, restaurantId);
-    const { start, end } = this.todayRange();
+    const { start, end } = await this.dayRange(tenant.restaurantId, date);
     const rows = await this.orderModel.aggregate([
       {
         $match: {
           organizationId: tenant.organizationId,
           restaurantId: tenant.restaurantId,
           status: OrderStatus.PAID,
-          createdAt: { $gte: start, $lte: end },
+          $or: [
+            { paidAt: { $gte: start, $lte: end } },
+            { paidAt: null, updatedAt: { $gte: start, $lte: end } },
+          ],
         },
       },
       {
@@ -74,17 +174,26 @@ export class ReportsService {
       },
       { $sort: { revenueTiyns: -1 } },
     ]);
-    return rows;
+    const ids = rows.map((r) => String(r._id));
+    const waiters = await this.userModel.find({ _id: { $in: ids } }).select('name').exec();
+    const nameById = new Map(waiters.map((w) => [String(w._id), w.name]));
+    return rows.map((r) => ({
+      ...r,
+      _id: nameById.get(String(r._id)) || String(r._id).slice(-4),
+    }));
   }
 
-  async byProducts(user: JwtPayload, restaurantId?: string) {
+  async byProducts(user: JwtPayload, restaurantId?: string, date?: string) {
     const tenant = tenantFilter(user, restaurantId);
-    const { start, end } = this.todayRange();
+    const { start, end } = await this.dayRange(tenant.restaurantId, date);
     const paidOrders = await this.orderModel
       .find({
         ...tenant,
         status: OrderStatus.PAID,
-        createdAt: { $gte: start, $lte: end },
+        $or: [
+          { paidAt: { $gte: start, $lte: end } },
+          { paidAt: null, updatedAt: { $gte: start, $lte: end } },
+        ],
       })
       .select('_id')
       .exec();
@@ -108,9 +217,9 @@ export class ReportsService {
     ]);
   }
 
-  async byPaymentMethods(user: JwtPayload, restaurantId?: string) {
+  async byPaymentMethods(user: JwtPayload, restaurantId?: string, date?: string) {
     const tenant = tenantFilter(user, restaurantId);
-    const { start, end } = this.todayRange();
+    const { start, end } = await this.dayRange(tenant.restaurantId, date);
     return this.paymentModel.aggregate([
       {
         $match: {

@@ -956,6 +956,14 @@ export class OrdersService {
     if (order.status === OrderStatus.CANCELLED) {
       throw new BadRequestException('Order cancelled');
     }
+    if (order.status === OrderStatus.PAID) {
+      throw new BadRequestException('Order already paid');
+    }
+    const canReprint =
+      user.role === 'OWNER' || user.role === 'ADMIN' || user.role === 'MANAGER';
+    if (order.precheckPrintedAt && !canReprint) {
+      throw new BadRequestException('Precheck already printed');
+    }
 
     const items = await this.itemModel
       .find({
@@ -994,6 +1002,7 @@ export class OrdersService {
             serviceChargeTiyns: totals.serviceChargeTiyns,
             totalTiyns: totals.totalTiyns,
             ...(order.prepaidTiyns == null ? { prepaidTiyns: 0 } : {}),
+            ...(order.precheckPrintedAt ? {} : { precheckPrintedAt: new Date() }),
           },
         },
       )
@@ -1110,7 +1119,23 @@ export class OrdersService {
       const parts = status.split(',').map((s) => s.trim()).filter(Boolean);
       q.status = parts.length > 1 ? { $in: parts } : parts[0];
     }
-    return this.orderModel.find(q).sort({ createdAt: -1 }).limit(100).exec();
+    const rows = await this.orderModel.find(q).sort({ createdAt: -1 }).limit(100).exec();
+    const tableIds = [...new Set(rows.map((o) => String(o.tableId)))];
+    const tables = await this.tableModel
+      .find({ _id: { $in: tableIds.map((id) => toObjectId(id)) } })
+      .select('name')
+      .exec();
+    const tableName = new Map(tables.map((t) => [String(t._id), t.name]));
+    return rows.map((o) => {
+      const plain = o.toObject();
+      return {
+        ...plain,
+        _id: String(o._id),
+        tableId: String(o.tableId),
+        tableName: tableName.get(String(o.tableId)),
+        number: String(o._id).slice(-4).toUpperCase(),
+      };
+    });
   }
 
   async getOpenByTable(user: JwtPayload, tableId: string, restaurantId?: string) {

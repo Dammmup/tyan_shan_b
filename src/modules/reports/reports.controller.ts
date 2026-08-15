@@ -16,8 +16,9 @@ export class ReportsController {
   dashboard(
     @CurrentUser() user: JwtPayload,
     @Query('restaurantId') restaurantId?: string,
+    @Query('date') date?: string,
   ) {
-    return this.reportsService.dashboardToday(user, restaurantId);
+    return this.reportsService.dashboardToday(user, restaurantId, date);
   }
 
   @Get('by-waiters')
@@ -25,8 +26,9 @@ export class ReportsController {
   byWaiters(
     @CurrentUser() user: JwtPayload,
     @Query('restaurantId') restaurantId?: string,
+    @Query('date') date?: string,
   ) {
-    return this.reportsService.byWaiters(user, restaurantId);
+    return this.reportsService.byWaiters(user, restaurantId, date);
   }
 
   @Get('by-products')
@@ -34,8 +36,9 @@ export class ReportsController {
   byProducts(
     @CurrentUser() user: JwtPayload,
     @Query('restaurantId') restaurantId?: string,
+    @Query('date') date?: string,
   ) {
-    return this.reportsService.byProducts(user, restaurantId);
+    return this.reportsService.byProducts(user, restaurantId, date);
   }
 
   @Get('by-payment-methods')
@@ -43,8 +46,9 @@ export class ReportsController {
   byPaymentMethods(
     @CurrentUser() user: JwtPayload,
     @Query('restaurantId') restaurantId?: string,
+    @Query('date') date?: string,
   ) {
-    return this.reportsService.byPaymentMethods(user, restaurantId);
+    return this.reportsService.byPaymentMethods(user, restaurantId, date);
   }
 
   @Get('shifts/:id')

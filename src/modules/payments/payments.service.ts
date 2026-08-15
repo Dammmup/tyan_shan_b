@@ -92,6 +92,7 @@ export class PaymentsService {
     });
 
     order.status = OrderStatus.PAID;
+    order.paidAt = new Date();
     await order.save();
 
     const table = await this.tableModel.findById(order.tableId).exec();
